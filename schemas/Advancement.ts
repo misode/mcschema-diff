@@ -1,6 +1,7 @@
 import {
   BooleanNode,
   Case,
+  ChoiceNode,
   StringNode as RawStringNode,
   ListNode,
   MapNode,
@@ -14,11 +15,26 @@ import {
   Opt,
 } from '@mcschema/core'
 import { Range } from './Common'
-import { LocationFields } from './Predicates'
 
 export function initAdvancementSchemas(schemas: SchemaRegistry, collections: CollectionRegistry) {
   const Reference = RawReference.bind(undefined, schemas)
   const StringNode = RawStringNode.bind(undefined, collections)
+
+  const EntityPredicate = ChoiceNode([
+      {
+        type: 'object',
+        node: Opt(Reference('entity_predicate')),
+        change: v => v[0]?.predicate ?? ({})
+      },
+      {
+        type: 'list',
+        node: ListNode(Reference('condition')),
+        change: v => [{
+          condition: 'minecraft:entity_properties',
+          predicate: v
+        }]
+      }
+    ], { context: 'conditions' })
 
   schemas.register('advancement', Mod(ObjectNode({
     display: Opt(Mod(ObjectNode({
@@ -75,6 +91,9 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
   schemas.register('advancement_criteria', ObjectNode({
     trigger: StringNode({ validator: 'resource', params: { pool: collections.get('advancement_trigger') } }),
     conditions: Opt(ObjectNode({
+      player: Mod(EntityPredicate, {
+        enabled: path => path.pop().push('trigger').get() !== 'minecraft:impossible'
+      }),
       [Switch]: ['pop', { push: 'trigger' }],
       [Case]: {
         'minecraft:bee_nest_destroyed': {
@@ -83,20 +102,20 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
           item: Opt(Reference('item_predicate'))
         },
         'minecraft:bred_animals': {
-          parent: Opt(Reference('entity_predicate')),
-          partner: Opt(Reference('entity_predicate')),
-          child: Opt(Reference('entity_predicate'))
+          parent: EntityPredicate,
+          partner: EntityPredicate,
+          child: EntityPredicate
         },
         'minecraft:brewed_potion': {
           potion: Opt(StringNode({ validator: 'resource', params: { pool: 'potion' } }))
         },
         'minecraft:changed_dimension': {
-          from: Opt(StringNode({ enum: 'dimension' })),
-          to: Opt(StringNode({ enum: 'dimension' }))
+          from: Opt(StringNode({ validator: 'resource', params: { pool: '$dimension' } })),
+          to: Opt(StringNode({ validator: 'resource', params: { pool: '$dimension' } }))
         },
         'minecraft:channeled_lightning': {
           victims: Opt(ListNode(
-            Opt(Reference('entity_predicate'))
+            EntityPredicate
           ))
         },
         'minecraft:construct_beacon': {
@@ -106,8 +125,8 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
           item: Opt(Reference('item_predicate'))
         },
         'minecraft:cured_zombie_villager': {
-          villager: Opt(Reference('entity_predicate')),
-          zombie: Opt(Reference('entity_predicate'))
+          villager: EntityPredicate,
+          zombie: EntityPredicate
         },
         'minecraft:effects_changed': {
           effects: Opt(MapNode(
@@ -131,17 +150,19 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
           damage: Opt(Reference('damage_predicate'))
         },
         'minecraft:entity_killed_player': {
-          entity: Opt(Reference('entity_predicate')),
+          entity: EntityPredicate,
           killing_blow: Opt(Reference('damage_source_predicate'))
         },
         'minecraft:filled_bucket': {
           item: Opt(Reference('item_predicate'))
         },
         'minecraft:fishing_rod_hooked': {
-          entity: Opt(Reference('entity_predicate')),
+          entity: EntityPredicate,
           item: Opt(Reference('item_predicate'))
         },
-        'minecraft:hero_of_the_village': LocationFields,
+        'minecraft:hero_of_the_village': {
+          location: Opt(Reference('location_predicate'))
+        },
         'minecraft:inventory_changed': {
           slots: Opt(ObjectNode({
             empty: Opt(Range()),
@@ -157,17 +178,23 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
           durability: Opt(Range()),
           item: Opt(Reference('item_predicate'))
         },
+        'minecraft:item_used_on_block': {
+          item: Opt(Reference('item_predicate')),
+          location: Opt(Reference('location_predicate'))
+        },
         'minecraft:killed_by_crossbow': {
           unique_entity_types: Opt(Range()),
           victims: Opt(ListNode(
-            Opt(Reference('entity_predicate'))
+            EntityPredicate
           ))
         },
         'minecraft:levitation': {
           distance: Opt(Range()),
           duration: Opt(Range())
         },
-        'minecraft:location': LocationFields,
+        'minecraft:location': {
+          location: Opt(Reference('location_predicate'))
+        },
         'minecraft:nether_travel': {
           distance: Opt(Range()),
           entered: Opt(Reference('location_predicate')),
@@ -183,25 +210,27 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
           item: Opt(Reference('item_predicate')),
           location: Opt(Reference('location_predicate'))
         },
+        'minecraft:player_generates_container_loot': {
+          loot_table: StringNode({ validator: 'resource', params: { pool: '$loot_table' } })
+        },
         'minecraft:player_hurt_entity': {
           damage: Opt(Reference('damage_predicate')),
-          entity: Opt(Reference('entity_predicate'))
+          entity: EntityPredicate
+        },
+        'minecraft:player_interacted_with_entity': {
+          item: Opt(Reference('item_predicate')),
+          entity: EntityPredicate
         },
         'minecraft:player_killed_entity': {
-          entity: Opt(Reference('entity_predicate')),
+          entity: EntityPredicate,
           killing_blow: Opt(Reference('damage_source_predicate'))
         },
         'minecraft:recipe_unlocked': {
           recipe: StringNode({ validator: 'resource', params: { pool: '$recipe' } })
         },
-        'minecraft:safely_harvest_honey': {
-          block: Opt(ObjectNode({
-            block: Opt(StringNode({ validator: 'resource', params: { pool: 'block' } })),
-            tag: Opt(StringNode({ validator: 'resource', params: { pool: '$tag/block' } }))
-          })),
-          item: Opt(Reference('item_predicate'))
+        'minecraft:slept_in_bed': {
+          location: Opt(Reference('location_predicate'))
         },
-        'minecraft:slept_in_bed': LocationFields,
         'minecraft:slide_down_block': {
           block: Opt(StringNode({ validator: 'resource', params: { pool: 'block' } }))
         },
@@ -209,10 +238,19 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
           item: Opt(Reference('item_predicate'))
         },
         'minecraft:summoned_entity': {
-          entity: Opt(Reference('entity_predicate'))
+          entity: EntityPredicate
         },
         'minecraft:tame_animal': {
-          entity: Opt(Reference('entity_predicate'))
+          entity: EntityPredicate
+        },
+        'minecraft:target_hit': {
+          projectile: EntityPredicate,
+          shooter: EntityPredicate,
+          signal_strength: Opt(Range({ integer: true }))
+        },
+        'minecraft:thrown_item_picked_up_by_entity': {
+          entity: Opt(Reference('entity_predicate')),
+          item: Opt(Reference('item_predicate'))
         },
         'minecraft:used_ender_eye': {
           distance: Opt(Range())
@@ -224,7 +262,9 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
           villager: Opt(Reference('entity_predicate')),
           item: Opt(Reference('item_predicate'))
         },
-        'minecraft:voluntary_exile': LocationFields
+        'minecraft:voluntary_exile': {
+          location: Reference('location_predicate')
+        }
       }
     }, { context: 'criterion' }))
   }, { category: 'predicate', context: 'criterion' }))

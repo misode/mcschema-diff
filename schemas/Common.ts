@@ -2,6 +2,7 @@ import {
   StringNode as RawStringNode,
   ObjectNode,
   MapNode,
+  StringNode,
   ListNode,
   NumberNode,
   ChoiceNode,
@@ -11,11 +12,71 @@ import {
   CollectionRegistry,
   NestedNodeChildren,
   BooleanNode,
+  ObjectOrPreset,
   Opt,
   Mod,
 } from '@mcschema/core'
 
 export let ConditionCases: NestedNodeChildren
+
+export const DefaultDimensionType = {
+  ultrawarm: false,
+  natural: true,
+  piglin_safe: false,
+  respawn_anchor_works: false,
+  bed_works: true,
+  has_raids: true,
+  has_skylight: true,
+  has_ceiling: false,
+  coordinate_scale: 1,
+  ambient_light: 0,
+  logical_height: 256,
+  infiniburn: 'minecraft:infiniburn_overworld',
+}
+export let DimensionTypePresets: (node: INode<any>) => INode<any>
+
+export const DefaultNoiseSettings = {
+  name: 'minecraft:overworld',
+  bedrock_roof_position: -10,
+  bedrock_floor_position: 0,
+  sea_level: 63,
+  disable_mob_generation: false,
+  noise: {
+    density_factor: 1,
+    density_offset: -0.46875,
+    simplex_surface_noise: true,
+    random_density_offset: true,
+    size_horizontal: 1,
+    size_vertical: 2,
+    height: 256,
+    sampling: {
+      xz_scale: 1,
+      y_scale: 1,
+      xz_factor: 80,
+      y_factor: 160
+    },
+    top_slide: {
+      target: -10,
+      size: 3,
+      offset: 0
+    },
+    bottom_slide: {
+      target: -30,
+      size: 0,
+      offset: 0
+    }
+  },
+  default_block: {
+    Name: "minecraft:stone"
+  },
+  default_fluid: {
+    Name: "minecraft:water",
+    Properties: {
+      level: "0"
+    }
+  }
+}
+export let NoiseSettingsPresets: (node: INode) => INode
 
 type RangeConfig = {
   /** Whether only integers are allowed */
@@ -32,6 +93,13 @@ type RangeConfig = {
   bounds?: boolean
 }
 export let Range: (config?: RangeConfig) => INode
+
+type UniformIntConfig = {
+  min?: number
+  max?: number
+  maxSpread?: number
+}
+export let UniformInt: (config?: UniformIntConfig) => INode
 
 export function initCommonSchemas(schemas: SchemaRegistry, collections: CollectionRegistry) {
   const StringNode = RawStringNode.bind(undefined, collections)
@@ -66,7 +134,8 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
   }))
 
   schemas.register('block_pos', Mod(ListNode(
-    NumberNode({ integer: true })
+    NumberNode({ integer: true }),
+    { minLength: 3, maxLength: 3 }
   ), {
     default: () => [0, 0, 0]
   }))
@@ -105,6 +174,25 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
     }] : [])
   ], { choiceContext: 'range' })
 
+  UniformInt = (config?: UniformIntConfig) => ChoiceNode([
+    {
+      type: 'number',
+      node: NumberNode({ integer: true, min: config?.min, max: config?.max }),
+      change: v => v.base
+    },
+    {
+      type: 'object',
+      node: ObjectNode({
+        base: NumberNode({ integer: true, min: config?.min, max: config?.max }),
+        spread: NumberNode({ integer: true, min: 0, max: config?.maxSpread })
+      }),
+      change: v => ({
+        base: v,
+        spread: 0
+      })
+    }
+  ], { context: 'uniform_int' })
+
   ConditionCases = {
     'minecraft:alternative': {
       terms: ListNode(
@@ -130,7 +218,7 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
       entity: StringNode({ enum: 'entity_source' }),
       scores: MapNode(
         StringNode({ validator: 'objective' }),
-        Range({ forceRange: true, bounds: true })
+        Range({ forceRange: true })
       )
     },
     'minecraft:inverted': {
@@ -173,4 +261,259 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
       thundering: Opt(BooleanNode())
     }
   }
+
+  DimensionTypePresets = (node: INode<any>) => ObjectOrPreset(
+    StringNode({ validator: 'resource', params: { pool: '$dimension_type' } }),
+    node,
+    {
+      'minecraft:overworld': DefaultDimensionType,
+      'minecraft:the_nether': {
+        name: 'minecraft:the_nether',
+        ultrawarm: true,
+        natural: false,
+        shrunk: true,
+        piglin_safe: true,
+        respawn_anchor_works: true,
+        bed_works: false,
+        has_raids: false,
+        has_skylight: false,
+        has_ceiling: true,
+        ambient_light: 0.1,
+        fixed_time: 18000,
+        logical_height: 128,
+        effects: 'minecraft:the_nether',
+        infiniburn: 'minecraft:infiniburn_nether',
+      },
+      'minecraft:the_end': {
+        name: 'minecraft:the_end',
+        ultrawarm: false,
+        natural: false,
+        shrunk: false,
+        piglin_safe: false,
+        respawn_anchor_works: false,
+        bed_works: false,
+        has_raids: true,
+        has_skylight: false,
+        has_ceiling: false,
+        ambient_light: 0,
+        fixed_time: 6000,
+        logical_height: 256,
+        effects: 'minecraft:the_end',
+        infiniburn: 'minecraft:infiniburn_end',
+      }
+    }
+  )
+  
+  NoiseSettingsPresets = (node: INode<any>) => ObjectOrPreset(
+    StringNode({ validator: 'resource', params: { pool: '$worldgen/noise_settings' } }),
+    node,
+    {
+      'minecraft:overworld': DefaultNoiseSettings,
+      'minecraft:nether': {
+        name: 'minecraft:nether',
+        bedrock_roof_position: 0,
+        bedrock_floor_position: 0,
+        sea_level: 32,
+        disable_mob_generation: true,
+        noise: {
+          density_factor: 0,
+          density_offset: 0.019921875,
+          simplex_surface_noise: false,
+          random_density_offset: false,
+          size_horizontal: 1,
+          size_vertical: 2,
+          height: 128,
+          sampling: {
+            xz_scale: 1,
+            y_scale: 3,
+            xz_factor: 80,
+            y_factor: 60
+          },
+          top_slide: {
+            target: 120,
+            size: 3,
+            offset: 0
+          },
+          bottom_slide: {
+            target: 320,
+            size: 4,
+            offset: -1
+          }
+        },
+        default_block: {
+          Name: "minecraft:netherrack"
+        },
+        default_fluid: {
+          Name: "minecraft:lava",
+          Properties: {
+            level: "0"
+          }
+        }
+      },
+      'minecraft:end': {
+        name: 'minecraft:end',
+        bedrock_roof_position: -10,
+        bedrock_floor_position: -10,
+        sea_level: 0,
+        disable_mob_generation: true,
+        noise: {
+          density_factor: 0,
+          density_offset: 0,
+          simplex_surface_noise: true,
+          random_density_offset: false,
+          island_noise_override: true,
+          size_horizontal: 2,
+          size_vertical: 1,
+          height: 128,
+          sampling: {
+            xz_scale: 2,
+            y_scale: 1,
+            xz_factor: 80,
+            y_factor: 160
+          },
+          top_slide: {
+            target: -3000,
+            size: 64,
+            offset: -46
+          },
+          bottom_slide: {
+            target: -30,
+            size: 7,
+            offset: 1
+          }
+        },
+        default_block: {
+          Name: "minecraft:end_stone"
+        },
+        default_fluid: {
+          Name: "minecraft:air"
+        }
+      },
+      'minecraft:amplified': {
+        name: 'minecraft:amplified',
+        bedrock_roof_position: -10,
+        bedrock_floor_position: 0,
+        sea_level: 63,
+        disable_mob_generation: false,
+        noise: {
+          density_factor: 1,
+          density_offset: -0.46875,
+          simplex_surface_noise: true,
+          random_density_offset: true,
+          amplified: true,
+          size_horizontal: 1,
+          size_vertical: 2,
+          height: 256,
+          sampling: {
+            xz_scale: 1,
+            y_scale: 1,
+            xz_factor: 80,
+            y_factor: 160
+          },
+          top_slide: {
+            target: -10,
+            size: 3,
+            offset: 0
+          },
+          bottom_slide: {
+            target: -30,
+            size: 0,
+            offset: 0
+          }
+        },
+        default_block: {
+          Name: "minecraft:stone"
+        },
+        default_fluid: {
+          Name: "minecraft:water",
+          Properties: {
+            level: "0"
+          }
+        }
+      },
+      'minecraft:caves': {
+        name: 'minecraft:caves',
+        bedrock_roof_position: 0,
+        bedrock_floor_position: 0,
+        sea_level: 32,
+        disable_mob_generation: true,
+        noise: {
+          density_factor: 0,
+          density_offset: 0.019921875,
+          simplex_surface_noise: false,
+          random_density_offset: false,
+          size_horizontal: 1,
+          size_vertical: 2,
+          height: 128,
+          sampling: {
+            xz_scale: 1,
+            y_scale: 3,
+            xz_factor: 80,
+            y_factor: 60
+          },
+          top_slide: {
+            target: 120,
+            size: 3,
+            offset: 0
+          },
+          bottom_slide: {
+            target: 320,
+            size: 4,
+            offset: -1
+          }
+        },
+        default_block: {
+          Name: "minecraft:stone"
+        },
+        default_fluid: {
+          Name: "minecraft:water",
+          Properties: {
+            level: "0"
+          }
+        }
+      },
+      'minecraft:floating_islands': {
+        name: 'minecraft:floating_islands',
+        bedrock_roof_position: -10,
+        bedrock_floor_position: -10,
+        sea_level: 0,
+        disable_mob_generation: true,
+        noise: {
+          density_factor: 0,
+          density_offset: 0,
+          simplex_surface_noise: true,
+          random_density_offset: false,
+          island_noise_override: true,
+          size_horizontal: 2,
+          size_vertical: 1,
+          height: 128,
+          sampling: {
+            xz_scale: 2,
+            y_scale: 1,
+            xz_factor: 80,
+            y_factor: 160
+          },
+          top_slide: {
+            target: -3000,
+            size: 64,
+            offset: -46
+          },
+          bottom_slide: {
+            target: -30,
+            size: 7,
+            offset: 1
+          }
+        },
+        default_block: {
+          Name: "minecraft:stone"
+        },
+        default_fluid: {
+          Name: "minecraft:water",
+          Properties: {
+            level: "0"
+          }
+        }
+      }
+    }
+  )
 }
