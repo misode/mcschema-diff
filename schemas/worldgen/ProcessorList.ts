@@ -10,11 +10,32 @@ import {
   SchemaRegistry,
   CollectionRegistry,
   Opt,
+  ChoiceNode,
+  INode,
 } from '@mcschema/core'
+
+export let Processors: INode
 
 export function initProcessorListSchemas(schemas: SchemaRegistry, collections: CollectionRegistry) {
   const Reference = RawReference.bind(undefined, schemas)
   const StringNode = RawStringNode.bind(undefined, collections)
+
+  Processors = ChoiceNode([
+    {
+      type: 'string',
+      node: StringNode({ validator: 'resource', params: { pool: '$worldgen/processor_list' }}),
+      change: v => undefined
+    },
+    {
+      type: 'object',
+      node: Reference('processor_list'),
+      change: v => ({
+        processors: [{
+          "processor_type": "minecraft:nop"
+        }]
+      })
+    }
+  ])
 
   schemas.register('processor_list', Mod(ObjectNode({
     processors: ListNode(
@@ -55,6 +76,9 @@ export function initProcessorListSchemas(schemas: SchemaRegistry, collections: C
         heightmap: StringNode({ enum: 'heightmap_type' }),
         offset: NumberNode({ integer: true })
       },
+      'minecraft:protected_blocks': {
+        value: StringNode({ validator: 'resource', params: { pool: '$tag/block' } })
+      },
       'minecraft:rule': {
         rules: ListNode(
           Reference('processor_rule')
@@ -93,10 +117,10 @@ export function initProcessorListSchemas(schemas: SchemaRegistry, collections: C
   }))
 
   const posTestFields = {
-    min_dist: NumberNode({ min: 0, max: 255, integer: true }),
-    max_dist: NumberNode({ min: 0, max: 255, integer: true }),
-    min_chance: NumberNode({ min: 0, max: 1 }),
-    max_chance: NumberNode({ min: 0, max: 1 })
+    min_dist: Opt(NumberNode({ min: 0, max: 255, integer: true })),
+    max_dist: Opt(NumberNode({ min: 0, max: 255, integer: true })),
+    min_chance: Opt(NumberNode({ min: 0, max: 1 })),
+    max_chance: Opt(NumberNode({ min: 0, max: 1 }))
   }
 
   schemas.register('pos_rule_test', ObjectNode({

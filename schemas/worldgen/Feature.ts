@@ -14,22 +14,23 @@ import {
   CollectionRegistry,
   Opt,
 } from '@mcschema/core'
-import { UniformInt } from '../Common'
+import { FloatProvider, IntProvider } from '../Common'
 import './Decorator'
 import './ProcessorList'
+import { Processors } from './ProcessorList'
 
 export function initFeatureSchemas(schemas: SchemaRegistry, collections: CollectionRegistry) {
   const Reference = RawReference.bind(undefined, schemas)
   const StringNode = RawStringNode.bind(undefined, collections)
 
   const RandomPatchConfig: NodeChildren = {
-    can_replace: BooleanNode(),
-    project: BooleanNode(),
-    need_water: BooleanNode(),
-    xspread: NumberNode({ integer: true }),
-    yspread: NumberNode({ integer: true }),
-    zspread: NumberNode({ integer: true }),
-    tries: NumberNode({ integer: true }),
+    can_replace: Opt(BooleanNode()),
+    project: Opt(BooleanNode()),
+    need_water: Opt(BooleanNode()),
+    xspread: Opt(NumberNode({ integer: true, min: 0 })),
+    yspread: Opt(NumberNode({ integer: true, min: 0 })),
+    zspread: Opt(NumberNode({ integer: true, min: 0 })),
+    tries: Opt(NumberNode({ integer: true, min: 1 })),
     state_provider: Reference('block_state_provider'),
     block_placer: Reference('block_placer'),
     whitelist: ListNode(
@@ -42,7 +43,7 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
 
   const DiskConfig: NodeChildren = {
     state: Reference('block_state'),
-    radius: UniformInt({ min: 0, max: 4, maxSpread: 4 }),
+    radius: IntProvider({ min: 0, max: 8 }),
     half_height: NumberNode({ integer: true, min: 0, max: 4 }),
     targets: ListNode(
       Reference('block_state')
@@ -55,14 +56,17 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
     foliage_radius: Opt(NumberNode({ integer: true }))
   }
 
-  const OreConfig: NodeChildren = {
-    state: Reference('block_state'),
-    size: NumberNode({ integer: true, min: 0, max: 64 }),
-    target: Reference('rule_test')
-  }
+  const TargetBlockState = ObjectNode({
+    target: Reference('rule_test'),
+    state: Reference('block_state')
+  })
 
-  const CountConfig: NodeChildren = {
-    count: UniformInt({ min: -10, max: 128, maxSpread: 128 })
+  const OreConfig: NodeChildren = {
+    size: NumberNode({ integer: true, min: 0, max: 64 }),
+    discard_chance_on_air_exposure: NumberNode({ min: 0, max: 1 }),
+    targets: ListNode(
+      TargetBlockState
+    )
   }
 
   const Feature = ChoiceNode([
@@ -76,6 +80,19 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
     }
   ], { choiceContext: 'feature' })
 
+  const VegetationPatchConfig: NodeChildren = {
+    surface: StringNode({ enum: ['floor', 'ceiling']}),
+    depth: IntProvider({ min: 1, max: 128 }),
+    vertical_range: NumberNode({ integer: true, min: 1, max: 256 }),
+    extra_bottom_block_chance: NumberNode({ min: 0, max: 1}),
+    extra_edge_column_chance: NumberNode({ min: 0, max: 1}),
+    vegetation_chance: NumberNode({ min: 0, max: 1}),
+    xz_radius: IntProvider(),
+    replaceable: StringNode({ validator: 'resource', params: { pool: '$tag/block' } }),
+    ground_state: Reference('block_state_provider'),
+    vegetation_feature: Feature
+  }
+
   schemas.register('configured_feature', Mod(ObjectNode({
     type: StringNode({ validator: 'resource', params: { pool: 'worldgen/feature' } }),
     config: ObjectNode({
@@ -85,8 +102,8 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
           probability: NumberNode({ min: 0, max: 1 })
         },
         'minecraft:basalt_columns': {
-          reach: UniformInt({ min: 0, max: 2, maxSpread: 1 }),
-          height: UniformInt({ min: 1, max: 5, maxSpread: 5 })
+          reach: IntProvider({ min: 0, max: 3 }),
+          height: IntProvider({ min: 1, max: 10 })
         },
         'minecraft:block_pile': {
           state_provider: Reference('block_state_provider')
@@ -95,16 +112,29 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
           decorator: Reference('configured_decorator'),
           feature: Feature
         },
+        'minecraft:decorated_flower': {
+          decorator: Reference('configured_decorator'),
+          feature: Feature
+        },
         'minecraft:delta_feature': {
           contents: Reference('block_state'),
           rim: Reference('block_state'),
-          size: UniformInt({ min: 0, max: 8, maxSpread: 8 }),
-          rim_size: UniformInt({ min: 0, max: 8, maxSpread: 8 })
+          size: IntProvider({ min: 0, max: 16 }),
+          rim_size: IntProvider({ min: 0, max: 16 })
         },
         'minecraft:disk': DiskConfig,
-        'minecraft:emerald_ore': {
-          state: Reference('block_state'),
-          target: Reference('block_state')
+        'minecraft:dripstone_cluster': {
+          floor_to_ceiling_search_range: NumberNode({ integer: true, min: 1, max: 512 }),
+          height: IntProvider({ min: 0, max: 128 }),
+          radius: IntProvider({ min: 0, max: 128 }),
+          max_stalagmite_stalactite_height_diff: NumberNode({ integer: true, min: 0, max: 64 }),
+          height_deviation: NumberNode({ integer: true, min: 1, max: 64 }),
+          dripstone_block_layer_thickness: IntProvider({ min: 0, max: 128 }),
+          density: FloatProvider({ min: 0, max: 2 }),
+          wetness: FloatProvider({ min: 0, max: 2 }),
+          chance_of_dripstone_column_at_max_distance_from_center: NumberNode({ min: 0, max: 1 }),
+          max_distance_from_edge_affecting_chance_of_dripstone_column: NumberNode({ integer: true, min: 1, max: 64 }),
+          max_distance_from_center_affecting_height_bias: NumberNode({ integer: true, min: 1, max: 64 })
         },
         'minecraft:end_gateway': {
           exact: BooleanNode(),
@@ -131,6 +161,74 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
         'minecraft:forest_rock': {
           state: Reference('block_state')
         },
+        'minecraft:fossil': {
+          max_empty_corners_allowed: NumberNode({ integer: true, min: 0, max: 7 }),
+          fossil_structures: ListNode(
+            StringNode({ validator: 'resource', params: { pool: '$structure' } })
+          ),
+          overlay_structures: ListNode(
+            StringNode({ validator: 'resource', params: { pool: '$structure' } })
+          ),
+          fossil_processors: Processors,
+          overlay_processors: Processors,
+        },
+        'minecraft:geode': {
+          blocks: ObjectNode({
+            filling_provider: Reference('block_state_provider'),
+            inner_layer_provider: Reference('block_state_provider'),
+            alternate_inner_layer_provider: Reference('block_state_provider'),
+            middle_layer_provider: Reference('block_state_provider'),
+            outer_layer_provider: Reference('block_state_provider'),
+            inner_placements: ListNode(
+              Reference('block_state')
+            ),
+            cannot_replace: StringNode({ validator: 'resource', params: { pool: '$tag/block' } }),
+            invalid_blocks: StringNode({ validator: 'resource', params: { pool: '$tag/block' } })
+          }),
+          layers: ObjectNode({
+            filling: Opt(NumberNode({ min: 0.01, max: 50 })),
+            inner_layer: Opt(NumberNode({ min: 0.01, max: 50 })),
+            middle_layer: Opt(NumberNode({ min: 0.01, max: 50 })),
+            outer_layer: Opt(NumberNode({ min: 0.01, max: 50 })),
+          }),
+          crack: ObjectNode({
+            generate_crack_chance: Opt(NumberNode({ min: 0, max: 1 })),
+            base_crack_size: Opt(NumberNode({ min: 0, max: 5 })),
+            crack_point_offset: Opt(NumberNode({ min: 0, max: 10, integer: true })),
+          }),
+          noise_multiplier: Opt(NumberNode({ min: 0, max: 1 })),
+          use_potential_placements_chance: Opt(NumberNode({ min: 0, max: 1 })),
+          use_alternate_layer0_chance: Opt(NumberNode({ min: 0, max: 1 })),
+          placements_require_layer0_alternate: Opt(BooleanNode()),
+          outer_wall_distance: Opt(IntProvider({ min: 1, max: 20 })),
+          distribution_points: Opt(IntProvider({ min: 1, max: 20 })),
+          point_offset: Opt(IntProvider({ min: 0, max: 10 })),
+          min_gen_offset: Opt(NumberNode({ integer: true })),
+          max_gen_offset: Opt(NumberNode({ integer: true })),
+          invalid_blocks_threshold: NumberNode({ integer: true })
+        },
+        'minecraft:glow_lichen': {
+          search_range: Opt(NumberNode({ min: 1, max: 64, integer: true })),
+          chance_of_spreading: Opt(NumberNode({ min: 0, max: 1 })),
+          can_place_on_floor: Opt(BooleanNode()),
+          can_place_on_ceiling: Opt(BooleanNode()),
+          can_place_on_wall: Opt(BooleanNode()),
+          can_be_placed_on: ListNode(
+            Reference('block_state')
+          )
+        },
+        'minecraft:growing_plant': {
+          direction: StringNode({ enum: ['up', 'down', 'north', 'east', 'south', 'west'] }),
+          allow_water: BooleanNode(),
+          height_distribution: ListNode(
+            ObjectNode({
+              weight: NumberNode({ integer: true }),
+              data: IntProvider()
+            })
+          ),
+          body_provider: Reference('block_state_provider'),
+          head_provider: Reference('block_state_provider')
+        },
         'minecraft:huge_brown_mushroom': HugeMushroomConfig,
         'minecraft:huge_fungus': {
           hat_state: Reference('block_state'),
@@ -147,16 +245,26 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
         'minecraft:lake': {
           state: Reference('block_state')
         },
+        'minecraft:large_dripstone': {
+          floor_to_ceiling_search_range: Opt(NumberNode({ integer: true, min: 1, max: 512 })),
+          column_radius: IntProvider({ min: 0, max: 60 }),
+          height_scale: FloatProvider({ min: 0, max: 20 }),
+          max_column_radius_to_cave_height_ratio: NumberNode({ min: 0, max: 1 }),
+          stalactite_bluntness: FloatProvider({ min: 0.1, max: 10 }),
+          stalagmite_bluntness: FloatProvider({ min: 0.1, max: 10 }),
+          wind_speed: FloatProvider({ min: 0, max: 2 }),
+          min_radius_for_wind: NumberNode({ integer: true, min: 0, max: 100 }),
+          min_bluntness_for_wind: NumberNode({ min: 0, max: 5 })
+        },
         'minecraft:nether_forest_vegetation': {
           state_provider: Reference('block_state_provider')
         },
         'minecraft:netherrack_replace_blobs': {
           state: Reference('block_state'),
           target: Reference('block_state'),
-          radius: UniformInt()
+          radius: IntProvider({ min: 0, max: 12 })
         },
         'minecraft:no_bonemeal_flower': RandomPatchConfig,
-        'minecraft:no_surface_ore': OreConfig,
         'minecraft:ore': OreConfig,
         'minecraft:random_patch': RandomPatchConfig,
         'minecraft:random_boolean_selector': {
@@ -172,20 +280,48 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
           ),
           default: Feature
         },
-        'minecraft:sea_pickle': CountConfig,
+        'minecraft:replace_single_block': {
+          targets: ListNode(
+            TargetBlockState
+          )
+        },
+        'minecraft:root_system': {
+          required_vertical_space_for_tree: NumberNode({ integer: true, min: 1, max: 64 }),
+          root_radius: NumberNode({ integer: true, min: 1, max: 64 }),
+          root_placement_attempts: NumberNode({ integer: true, min: 1, max: 256 }),
+          root_column_max_height: NumberNode({ integer: true, min: 1, max: 4096 }),
+          hanging_root_radius: NumberNode({ integer: true, min: 1, max: 64 }),
+          hanging_roots_vertical_span: NumberNode({ integer: true, min: 0, max: 16 }),
+          hanging_root_placement_attempts: NumberNode({ integer: true, min: 0, max: 256 }),
+          allowed_vertical_water_for_tree: NumberNode({ integer: true, min: 1, max: 64 }),
+          root_replaceable: StringNode({ validator: 'resource', params: { pool: '$tag/block' } }),
+          root_state_provider: Reference('block_state_provider'),
+          hanging_root_state_provider: Reference('block_state_provider'),
+          feature: Feature
+        },
+        'minecraft:scattered_ore': OreConfig,
+        'minecraft:sea_pickle': {
+          count: IntProvider({ min: 0, max: 256 })
+        },
         'minecraft:seagrass': {
           probability: NumberNode({ min: 0, max: 1 })
         },
         'minecraft:simple_block': {
-          to_place: Reference('block_state'),
-          place_on: ListNode(Reference('block_state')),
-          place_in: ListNode(Reference('block_state')),
-          place_under: ListNode(Reference('block_state'))
+          to_place: Reference('block_state_provider'),
+          place_on: Opt(ListNode(Reference('block_state'))),
+          place_in: Opt(ListNode(Reference('block_state'))),
+          place_under: Opt(ListNode(Reference('block_state')))
         },
         'minecraft:simple_random_selector': {
           features: ListNode(
             Feature
           )
+        },
+        'minecraft:small_dripstone': {
+          max_placements: Opt(NumberNode({ integer: true, min: 0, max: 100 })),
+          empty_space_search_radius: Opt(NumberNode({ integer: true, min: 0, max: 20 })),
+          max_offset_from_origin: Opt(NumberNode({ integer: true, min: 0, max: 20 })),
+          chance_of_taller_dripstone: Opt(NumberNode({ min: 0, max: 1 }))
         },
         'minecraft:spring_feature': {
           state: Reference('fluid_state'),
@@ -197,22 +333,30 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
           )
         },
         'minecraft:tree': {
-          max_water_depth: NumberNode({ integer: true }),
-          ignore_vines: BooleanNode(),
-          heightmap: StringNode({ enum: 'heightmap_type' }),
+          ignore_vines: Opt(BooleanNode()),
+          force_dirt: Opt(BooleanNode()),
           minimum_size: Reference('feature_size'),
+          dirt_provider: Reference('block_state_provider'),
+          sapling_provider: Reference('block_state_provider'),
           trunk_provider: Reference('block_state_provider'),
-          leaves_provider: Reference('block_state_provider'),
+          foliage_provider: Reference('block_state_provider'),
           trunk_placer: ObjectNode({
             type: StringNode({ validator: 'resource', params: { pool: 'worldgen/trunk_placer_type' } }),
             base_height: NumberNode({ integer: true, min: 0, max: 32 }),
             height_rand_a: NumberNode({ integer: true, min: 0, max: 24 }),
-            height_rand_b: NumberNode({ integer: true, min: 0, max: 24 })
+            height_rand_b: NumberNode({ integer: true, min: 0, max: 24 }),
+            [Switch]: [{ push: 'type' }],
+            [Case]: {
+              'minecraft:bending_trunk_placer': {
+                bend_length: IntProvider({ min: 1, max: 64 }),
+                min_height_for_leaves: Opt(NumberNode({ integer: true, min: 1 }))
+              }
+            }
           }, { context: 'trunk_placer' }),
           foliage_placer: ObjectNode({
             type: StringNode({ validator: 'resource', params: { pool: 'worldgen/foliage_placer_type' } }),
-            radius: UniformInt({ min: 0, max: 8, maxSpread: 8 }),
-            offset: UniformInt({ min: 0, max: 8, maxSpread: 8 }),
+            radius: IntProvider({ min: 0, max: 16 }),
+            offset: IntProvider({ min: 0, max: 16 }),
             [Switch]: [{ push: 'type' }],
             [Case]: {
               'minecraft:blob_foliage_placer': {
@@ -228,13 +372,17 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
                 height: NumberNode({ integer: true, min: 0, max: 16 })
               },
               'minecraft:mega_pine_foliage_placer': {
-                crown_height: UniformInt({ min: 0, max: 16, maxSpread: 8 })
+                crown_height: IntProvider({ min: 0, max: 24 })
               },
               'minecraft:pine_foliage_placer': {
-                height: UniformInt({ min: 0, max: 16, maxSpread: 8 })
+                height: IntProvider({ min: 0, max: 24 })
+              },
+              'minecraft:random_spread_foliage_placer': {
+                foliage_height: IntProvider({ min: 1, max: 512 }),
+                leaf_placement_attempts: NumberNode({ integer: true, min: 0, max: 256 })
               },
               'minecraft:spruce_foliage_placer': {
-                trunk_height: UniformInt({ min: 0, max: 16, maxSpread: 8 })
+                trunk_height: IntProvider({ min: 0, max: 24 })
               }
             }
           }, { context: 'foliage_placer', disableSwitchContext: true }),
@@ -255,7 +403,14 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
               }
             }, { context: 'tree_decorator' })
           )
-        }
+        },
+        'minecraft:underwater_magma': {
+          floor_search_range: NumberNode({ integer: true, min: 0, max: 512 }),
+          placement_radius_around_floor: NumberNode({ integer: true, min: 0, max: 64 }),
+          placement_probability_per_valid_position: NumberNode({ min: 0, max: 1 })
+        },
+        'minecraft:vegetation_patch': VegetationPatchConfig,
+        'minecraft:waterlogged_vegetation_patch': VegetationPatchConfig
       }
     }, { context: 'feature' })
   }, { context: 'feature' }), {
@@ -318,6 +473,11 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
     type: StringNode({ validator: 'resource', params: { pool: 'worldgen/block_state_provider_type' } }),
     [Switch]: [{ push: 'type' }],
     [Case]: {
+      'minecraft:randomized_int_state_provider': {
+        property: StringNode(),
+        values: IntProvider(),
+        source: Reference('block_state_provider')
+      },
       'minecraft:rotated_block_provider': {
         state: Reference('block_state')
       },
@@ -348,8 +508,7 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
     [Switch]: [{ push: 'type' }],
     [Case]: {
       'minecraft:column_placer': {
-        min_size: NumberNode({ integer: true }),
-        extra_size: NumberNode({ integer: true })
+        size: IntProvider({ min: 0 })
       }
     }
   }, { context: 'block_placer' }), {

@@ -24,6 +24,7 @@ export function initCollections(collections: CollectionRegistry) {
     'minecraft:item_used_on_block',
     'minecraft:killed_by_crossbow',
     'minecraft:levitation',
+    'minecraft:lightning_strike',
     'minecraft:location',
     'minecraft:nether_travel',
     'minecraft:placed_block',
@@ -35,6 +36,7 @@ export function initCollections(collections: CollectionRegistry) {
     'minecraft:shot_crossbow',
     'minecraft:slept_in_bed',
     'minecraft:slide_down_block',
+    'minecraft:started_riding',
     'minecraft:summoned_entity',
     'minecraft:tame_animal',
     'minecraft:target_hit',
@@ -42,6 +44,7 @@ export function initCollections(collections: CollectionRegistry) {
     'minecraft:thrown_item_picked_up_by_entity',
     'minecraft:used_ender_eye',
     'minecraft:used_totem',
+    'minecraft:using_item',
     'minecraft:villager_trade',
     'minecraft:voluntary_exile'
   ])
@@ -121,8 +124,8 @@ export function initCollections(collections: CollectionRegistry) {
 
   collections.register('entity_source', [
     'this',
-    'direct_killer',
     'killer',
+    'direct_killer',
     'killer_player'
   ])
 
@@ -503,7 +506,8 @@ export function initCollections(collections: CollectionRegistry) {
     'savanna',
     'swamp',
     'taiga',
-    'the_end'
+    'the_end',
+    'underground'
   ])
 
   collections.register('heightmap_type', [
@@ -533,5 +537,68 @@ export function initCollections(collections: CollectionRegistry) {
     'minecraft:advancement_entity',
     'minecraft:generic',
     'minecraft:block'
+  ])
+
+  collections.register('banner_pattern', [
+    'base',
+    'square_bottom_left',
+    'square_bottom_right',
+    'square_top_left',
+    'square_top_right',
+    'stripe_bottom',
+    'stripe_top',
+    'stripe_left',
+    'stripe_right',
+    'stripe_center',
+    'stripe_middle',
+    'stripe_downright',
+    'stripe_downleft',
+    'small_stripes',
+    'cross',
+    'straight_cross',
+    'triangle_bottom',
+    'triangle_top',
+    'triangles_bottom',
+    'triangles_top',
+    'diagonal_left',
+    'diagonal_up_right',
+    'diagonal_up_left',
+    'diagonal_right',
+    'circle',
+    'rhombus',
+    'half_vertical',
+    'half_horizontal',
+    'half_vertical_right',
+    'half_horizontal_bottom',
+    'border',
+    'curly_border',
+    'gradient',
+    'gradient_up',
+    'bricks',
+    'globe',
+    'creeper',
+    'skull',
+    'flower',
+    'mojang',
+    'piglin'
+  ])
+
+  collections.register('dye_color', [
+    'white',
+    'orange',
+    'magenta',
+    'light_blue',
+    'yellow',
+    'lime',
+    'pink',
+    'gray',
+    'light_gray',
+    'cyan',
+    'purple',
+    'blue',
+    'brown',
+    'green',
+    'red',
+    'black'
   ])
 }

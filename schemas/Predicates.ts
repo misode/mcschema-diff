@@ -13,7 +13,6 @@ import {
   CollectionRegistry,
   NumberNode,
 } from '@mcschema/core'
-import { Range } from './Common'
 
 export function initPredicatesSchemas(schemas: SchemaRegistry, collections: CollectionRegistry) {
   const Reference = RawReference.bind(undefined, schemas)
@@ -46,10 +45,12 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
   ])
 
   schemas.register('item_predicate', ObjectNode({
-    item: Opt(StringNode({ validator: 'resource', params: { pool: 'item' } })),
+    items: Opt(ListNode(
+      StringNode({ validator: 'resource', params: { pool: 'item' } })
+    )),
     tag: Opt(StringNode({ validator: 'resource', params: { pool: '$tag/item' } })),
-    count: Opt(Range()),
-    durability: Opt(Range()),
+    count: Reference('int_bounds'),
+    durability: Reference('int_bounds'),
     potion: Opt(StringNode({ validator: 'resource', params: { pool: 'potion' } })),
     nbt: Opt(StringNode({ validator: 'nbt', params: { registry: { category: 'minecraft:item', id: ['pop', { push: 'item' }] } } })),
     enchantments: Opt(ListNode(
@@ -59,11 +60,13 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
 
   schemas.register('enchantment_predicate', ObjectNode({
     enchantment: Opt(StringNode({ validator: 'resource', params: { pool: 'enchantment' } })),
-    levels: Opt(Range())
+    levels: Reference('int_bounds')
   }, { context: 'enchantment' }))
 
   schemas.register('block_predicate', ObjectNode({
-    block: Opt(StringNode({ validator: 'resource', params: { pool: 'block' } })),
+    blocks: Opt(ListNode(
+      StringNode({ validator: 'resource', params: { pool: 'block' } })
+    )),
     tag: Opt(StringNode({ validator: 'resource', params: { pool: '$tag/block' } })),
     nbt: Opt(StringNode({ validator: 'nbt', params: { registry: { category: 'minecraft:block', id: ['pop', { push: 'block' }] } } })),
     state: Opt(MapNode(
@@ -84,15 +87,15 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
 
   schemas.register('location_predicate', ObjectNode({
     position: Opt(ObjectNode({
-      x: Opt(Range()),
-      y: Opt(Range()),
-      z: Opt(Range())
+      x: Reference('float_bounds'),
+      y: Reference('float_bounds'),
+      z: Reference('float_bounds')
     })),
     biome: Opt(StringNode({ validator: 'resource', params: { pool: '$worldgen/biome' } })),
     feature: Opt(StringNode({ enum: collections.get('worldgen/structure_feature').map(v => v.slice(10)) })),
     dimension: Opt(StringNode({ validator: 'resource', params: { pool: '$dimension' } })),
     light: Opt(ObjectNode({
-      light: Opt(Range({ integer: true, min: 0, max: 15 }))
+      light: Reference('int_bounds')
     })),
     smokey: Opt(BooleanNode()),
     block: Opt(Reference('block_predicate')),
@@ -102,7 +105,7 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
   schemas.register('statistic_predicate', ObjectNode({
     type: StringNode({ validator: 'resource', params: { pool: 'stat_type' } }),
     stat: StringNode(),
-    value: Range(),
+    value: Reference('int_bounds'),
     [Switch]: [{ push: 'type' }],
     [Case]: {
       'minecraft:mined': {
@@ -137,7 +140,7 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
 
   schemas.register('player_predicate', ObjectNode({
     gamemode: Opt(StringNode({ enum: 'gamemode' })),
-    level: Opt(Range()),
+    level: Reference('int_bounds'),
     advancements: Opt(MapNode(
       StringNode({ validator: 'resource', params: { pool: '$advancement' } }),
       ChoiceNode([
@@ -156,22 +159,23 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
     )),
     stats: Opt(ListNode(
       Reference('statistic_predicate')
-    ))
+    )),
+    looking_at: Opt(Reference('entity_predicate'))
   }, { context: 'player' }))
 
   schemas.register('status_effect_predicate', ObjectNode({
-    amplifier: Opt(Range()),
-    duration: Opt(Range()),
+    amplifier: Reference('int_bounds'),
+    duration: Reference('int_bounds'),
     ambient: Opt(BooleanNode()),
     visible: Opt(BooleanNode())
   }, { context: 'status_effect' }))
 
   schemas.register('distance_predicate', ObjectNode({
-    x: Opt(Range()),
-    y: Opt(Range()),
-    z: Opt(Range()),
-    absolute: Opt(Range()),
-    horizontal: Opt(Range())
+    x: Reference('float_bounds'),
+    y: Reference('float_bounds'),
+    z: Reference('float_bounds'),
+    absolute: Reference('float_bounds'),
+    horizontal: Reference('float_bounds')
   }, { context: 'distance' }))
 
   schemas.register('entity_predicate', ObjectNode({
@@ -179,6 +183,7 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
     nbt: Opt(StringNode({ validator: 'nbt', params: { registry: { category: 'minecraft:entity', id: ['pop', { push: 'type' }] } } })),
     team: Opt(StringNode({ validator: 'team' })),
     location: Opt(Reference('location_predicate')),
+    stepping_on: Opt(Reference('location_predicate')),
     distance: Opt(Reference('distance_predicate')),
     flags: Opt(ObjectNode({
       is_on_fire: Opt(BooleanNode()),
@@ -191,9 +196,14 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
       StringNode({ enum: 'slot' }),
       Reference('item_predicate')
     )),
-    vehicle: Opt(Reference('entity_predicate')),
-    targeted_entity: Opt(Reference('entity_predicate')),
     player: Opt(Reference('player_predicate')),
+    vehicle: Opt(Reference('entity_predicate')),
+    passenger: Opt(Reference('entity_predicate')),
+    targeted_entity: Opt(Reference('entity_predicate')),
+    lightning_bolt: Opt(ObjectNode({
+      blocks_set_on_fire: Opt(Reference('int_bounds')),
+      entity_struck: Opt(Reference('entity_predicate'))
+    })),
     fishing_hook: Opt(ObjectNode({
       in_open_water: Opt(BooleanNode())
     })),
@@ -217,8 +227,8 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
   }, { context: 'damage_source' }))
 
   schemas.register('damage_predicate', ObjectNode({
-    dealt: Opt(Range()),
-    taken: Opt(Range()),
+    dealt: Reference('float_bounds'),
+    taken: Reference('float_bounds'),
     blocked: Opt(BooleanNode()),
     source_entity: Opt(Reference('entity_predicate')),
     type: Opt(Reference('damage_source_predicate'))

@@ -10,24 +10,14 @@ import {
   CollectionRegistry,
   Opt,
 } from '@mcschema/core'
-import { UniformInt } from '../Common'
+import { IntProvider } from '../Common'
 
 export function initDecoratorSchemas(schemas: SchemaRegistry, collections: CollectionRegistry) {
   const Reference = RawReference.bind(undefined, schemas)
   const StringNode = RawStringNode.bind(undefined, collections)
 
-  const RangeConfig: NodeChildren = {
-    maximum: NumberNode({ integer: true }),
-    bottom_offset: NumberNode({ integer: true }),
-    top_offset: NumberNode({ integer: true })
-  }
-
-  const ChanceConfig: NodeChildren = {
-    chance: NumberNode({ integer: true, min: 0 })
-  }
-
   const CountConfig: NodeChildren = {
-    count: UniformInt({ min: -10, max: 128, maxSpread: 128 })
+    count: IntProvider({ min: 0, max: 256 })
   }
 
   schemas.register('configured_decorator', ObjectNode({
@@ -36,14 +26,19 @@ export function initDecoratorSchemas(schemas: SchemaRegistry, collections: Colle
       [Switch]: ['pop', { push: 'type' }],
       [Case]: {
         'minecraft:carving_mask': {
-          step: StringNode({ enum: 'generation_step' }),
-          probability: NumberNode({ min: 0, max: 1 })
+          step: StringNode({ enum: 'generation_step' })
         },
-        'minecraft:chance': ChanceConfig,
+        'minecraft:cave_surface': {
+          surface: StringNode({ enum: ['floor', 'ceiling']}),
+          floor_to_ceiling_search_range: NumberNode({ integer: true })
+        },
+        'minecraft:chance': {
+          chance: NumberNode({ integer: true, min: 0 })
+        },
         'minecraft:count': CountConfig,
         'minecraft:count_extra': {
-          count: NumberNode({ integer: true }),
-          extra_count: NumberNode({ integer: true }),
+          count: NumberNode({ integer: true, min: 0 }),
+          extra_count: NumberNode({ integer: true, min: 0 }),
           extra_chance: NumberNode({ min: 0, max: 1 })
         },
         'minecraft:count_multilayer': CountConfig,
@@ -61,17 +56,21 @@ export function initDecoratorSchemas(schemas: SchemaRegistry, collections: Colle
           outer: Reference('configured_decorator'),
           inner: Reference('configured_decorator')
         },
-        'minecraft:depth_average': {
-          baseline: NumberNode({ integer: true }),
-          spread: NumberNode({ integer: true })
+        'minecraft:heightmap': {
+          heightmap: StringNode({ enum: 'heightmap_type' })
         },
-        'minecraft:fire': CountConfig,
-        'minecraft:glowstone': CountConfig,
-        'minecraft:lava_lake': ChanceConfig,
-        'minecraft:range': RangeConfig,
-        'minecraft:range_biased': RangeConfig,
-        'minecraft:range_very_biased': RangeConfig,
-        'minecraft:water_lake': ChanceConfig
+        'minecraft:heightmap_spread_double': {
+          heightmap: StringNode({ enum: 'heightmap_type' })
+        },
+        'minecraft:lava_lake': {
+          chance: NumberNode({ integer: true, min: 0 })
+        },
+        'minecraft:range': {
+          height: Reference('height_provider')
+        },
+        'minecraft:water_depth_threshold': {
+          max_water_depth: NumberNode({ integer: true })
+        }
       }
     }, { context: 'decorator', category: 'predicate' })
   }, { context: 'decorator', category: 'predicate' }))

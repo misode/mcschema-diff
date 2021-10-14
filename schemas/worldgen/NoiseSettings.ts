@@ -27,11 +27,18 @@ export function initNoiseSettingsSchemas(schemas: SchemaRegistry, collections: C
     bedrock_roof_position: NumberNode({ integer: true }),
     bedrock_floor_position: NumberNode({ integer: true }),
     sea_level: NumberNode({ integer: true }),
+    min_surface_level: NumberNode({ integer: true }),
     disable_mob_generation: BooleanNode(),
+    noise_caves_enabled: BooleanNode(),
+    noodle_caves_enabled: BooleanNode(),
+    aquifers_enabled: BooleanNode(),
+    deepslate_enabled: BooleanNode(),
+    ore_veins_enabled: BooleanNode(),
     default_block: Reference('block_state'),
     default_fluid: Reference('block_state'),
     noise: ObjectNode({
-      height: NumberNode({ integer: true }),
+      min_y: NumberNode({ integer: true, min: -2048, max: 2047 }),
+      height: NumberNode({ integer: true, min: 0, max: 4096 }),
       density_factor: NumberNode(),
       density_offset: NumberNode(),
       size_horizontal: NumberNode({ integer: true }),
@@ -48,19 +55,32 @@ export function initNoiseSettingsSchemas(schemas: SchemaRegistry, collections: C
       }),
       bottom_slide: ObjectNode({
         target: NumberNode({ integer: true }),
-        size: NumberNode({ integer: true }),
+        size: NumberNode({ integer: true, min: 0 }),
         offset: NumberNode({ integer: true })
       }),
       top_slide: ObjectNode({
         target: NumberNode({ integer: true }),
-        size: NumberNode({ integer: true }),
+        size: NumberNode({ integer: true, min: 0 }),
         offset: NumberNode({ integer: true })
       })
     }),
     structures: Reference('generator_structures')
-  }, { context: 'noise_settings' }), {
-    default: () => DefaultNoiseSettings
-  }))
+  }, { context: 'noise_settings' }), node => ({
+    default: () => DefaultNoiseSettings,
+    validate: (path, value, errors, options) => {
+      value = node.validate(path, value, errors, options)
+      if (value?.noise?.min_y + value?.noise?.height > 2047) {
+        errors.add(path.push('noise').push('height'), 'error.min_y_plus_height', 2047)
+      }
+      if (value?.noise?.height % 16 !== 0) {
+        errors.add(path.push('noise').push('height'), 'error.height_multiple', 16)
+      }
+      if (value?.noise?.min_y % 16 !== 0) {
+        errors.add(path.push('noise').push('min_y'), 'error.min_y_multiple', 16)
+      }
+      return value
+    }
+  })))
 
   schemas.register('generator_structures', ObjectNode({
     stronghold: Opt(ObjectNode({

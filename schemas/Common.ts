@@ -2,7 +2,6 @@ import {
   StringNode as RawStringNode,
   ObjectNode,
   MapNode,
-  StringNode,
   ListNode,
   NumberNode,
   ChoiceNode,
@@ -15,9 +14,14 @@ import {
   ObjectOrPreset,
   Opt,
   Mod,
+  Switch,
+  Case,
+  ResourceType,
+  NodeChildren,
 } from '@mcschema/core'
 
-export let ConditionCases: NestedNodeChildren
+export let ConditionCases: (entitySourceNode?: INode<any>) => NestedNodeChildren
+export let FunctionCases: (conditions: NodeChildren, copySourceNode?: INode<any>, entitySourceNode?: INode<any>) => NestedNodeChildren
 
 export const DefaultDimensionType = {
   ultrawarm: false,
@@ -32,6 +36,8 @@ export const DefaultDimensionType = {
   ambient_light: 0,
   logical_height: 256,
   infiniburn: 'minecraft:infiniburn_overworld',
+  min_y: 0,
+  height: 256,
 }
 export let DimensionTypePresets: (node: INode<any>) => INode<any>
 
@@ -41,14 +47,18 @@ export const DefaultNoiseSettings = {
   bedrock_floor_position: 0,
   sea_level: 63,
   disable_mob_generation: false,
+  noise_caves_enabled: true,
+  aquifers_enabled: true,
+  deepslate_enabled: true,
   noise: {
+    min_y: 0,
+    height: 256,
     density_factor: 1,
     density_offset: -0.46875,
     simplex_surface_noise: true,
     random_density_offset: true,
     size_horizontal: 1,
     size_vertical: 2,
-    height: 256,
     sampling: {
       xz_scale: 1,
       y_scale: 1,
@@ -78,28 +88,12 @@ export const DefaultNoiseSettings = {
 }
 export let NoiseSettingsPresets: (node: INode) => INode
 
-type RangeConfig = {
-  /** Whether only integers are allowed */
-  integer?: boolean
-  /** If specified, number will be capped at this minimum */
-  min?: number
-  /** If specified, number will be capped at this maximum */
-  max?: number
-  /** Whether binomials are allowed */
-  allowBinomial?: boolean
-  /** If true, only ranges are allowed */
-  forceRange?: boolean
-  /** If true, min and max are both required */
-  bounds?: boolean
-}
-export let Range: (config?: RangeConfig) => INode
-
-type UniformIntConfig = {
+type MinMaxConfig = {
   min?: number
   max?: number
-  maxSpread?: number
 }
-export let UniformInt: (config?: UniformIntConfig) => INode
+export let FloatProvider: (config?: MinMaxConfig) => INode
+export let IntProvider: (config?: MinMaxConfig) => INode
 
 export function initCommonSchemas(schemas: SchemaRegistry, collections: CollectionRegistry) {
   const StringNode = RawStringNode.bind(undefined, collections)
@@ -113,7 +107,7 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
       { validation: { validator: 'block_state_map', params: { id: ['pop', { push: 'Name' }] } } }
     ))
   }, { context: 'block_state' }), {
-    default: () => ({  
+    default: () => ({
       Name: 'minecraft:stone'
     })
   }))
@@ -140,60 +134,253 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
     default: () => [0, 0, 0]
   }))
 
-  Range = (config?: RangeConfig) => ChoiceNode([
-    ...(config?.forceRange ? [] : [{
-      type: 'number',
-      node: NumberNode(config),
-      change: (v: any) => v === undefined ? 0 : v.min ?? v.max ?? v.n ?? 0
-    }]),
-    {
-      type: 'object',
-      priority: -1,
-      node: ObjectNode({
-        min: config?.bounds ? NumberNode(config) : Opt(NumberNode(config)),
-        max: config?.bounds ? NumberNode(config) : Opt(NumberNode(config))
-      }, { context: 'range' }),
-      change: (v: any) => ({
-        min: typeof v === 'number' ? v : v === undefined ? 1 : v.n,
-        max: typeof v === 'number' ? v : v === undefined ? 1 : v.n
-      })
-    },
-    ...(config?.allowBinomial ? [{
-      type: 'binomial',
-      node: ObjectNode({
-        type: StringNode({enum: ['minecraft:binomial'] }),
-        n: NumberNode({ integer: true, min: 0 }),
-        p: NumberNode({ min: 0, max: 1 })
-      }, { context: 'range' }),
-      match: (v: any) => v !== undefined && v.type === 'minecraft:binomial',
-      change: (v: any) => ({
-        type: 'minecraft:binomial',
-        n: typeof v === 'number' ? v : v === undefined ? 1 : (v.min ?? v.max ?? 1),
-        p: 0.5
-      })
-    }] : [])
-  ], { choiceContext: 'range' })
-
-  UniformInt = (config?: UniformIntConfig) => ChoiceNode([
+  const Bounds = (integer?: boolean) => Opt(ChoiceNode([
     {
       type: 'number',
-      node: NumberNode({ integer: true, min: config?.min, max: config?.max }),
-      change: v => v.base
+      node: NumberNode({ integer }),
+      change: (v: any) => v === undefined ? 0 : v.min ?? v.max ?? 0
     },
     {
       type: 'object',
       node: ObjectNode({
-        base: NumberNode({ integer: true, min: config?.min, max: config?.max }),
-        spread: NumberNode({ integer: true, min: 0, max: config?.maxSpread })
-      }),
-      change: v => ({
-        base: v,
-        spread: 0
+        min: Opt(NumberNode({ integer })),
+        max: Opt(NumberNode({ integer }))
+      }, { context: 'range' }),
+      change: (v: any) => ({
+        min: v ?? 0,
+        max: v ?? 0
       })
     }
-  ], { context: 'uniform_int' })
+  ]))
 
-  ConditionCases = {
+  schemas.register('int_bounds', Bounds(true))
+
+  schemas.register('float_bounds', Bounds())
+
+  schemas.register('int_range', ChoiceNode([
+    {
+      type: 'object',
+      node: ObjectNode({
+        min: Opt(Reference('number_provider')),
+        max: Opt(Reference('number_provider'))
+      })
+    },
+    {
+      type: 'number',
+      node: NumberNode({ integer: true })
+    }
+  ], { context: 'range' }))
+
+  const ObjectWithType = (pool: ResourceType, directType: string, directPath: string, directDefault: string, objectDefault: string | null, context: string, cases: NestedNodeChildren) => {
+    let defaultCase: NodeChildren = {}
+    if (objectDefault) {
+      Object.keys(cases[objectDefault]).forEach(k => {
+        defaultCase[k] = Mod(cases[objectDefault][k], {
+          enabled: path => path.push('type').get() === undefined
+        })
+      })
+    }
+    const provider = ObjectNode({
+      type: Mod(Opt(StringNode({ validator: 'resource', params: { pool } })), {
+        hidden: () => true
+      }),
+      [Switch]: [{ push: 'type' }],
+      [Case]: cases,
+      ...defaultCase
+    }, { context, disableSwitchContext: true })
+
+    const choices: any[] = [{
+      type: directType,
+      node: cases[directDefault][directPath]
+    }]
+    if (objectDefault) {
+      choices.push({
+        type: 'object',
+        priority: -1,
+        node: provider
+      })
+    }
+    Object.keys(cases).forEach(k => {
+      choices.push({
+        type: k,
+        match: (v: any) => {
+          const type = 'minecraft:' + v?.type?.replace(/^minecraft:/, '')
+          if (type === k) return true
+          const keys = v ? Object.keys(v) : []
+          return typeof v === 'object' && (keys?.length === 0 || (keys?.length === 1 && keys?.[0] === 'type'))
+        },
+        node: provider,
+        change: (v: any) => ({type: k})
+      })
+    })
+    return ChoiceNode(choices, { context, choiceContext: `${context}.type` })
+  }
+
+  schemas.register('number_provider', ObjectWithType(
+    'loot_number_provider_type',
+    'number', 'value', 'minecraft:constant',
+    'minecraft:uniform',
+    'number_provider',
+    {
+      'minecraft:constant': {
+        value: NumberNode()
+      },
+      'minecraft:uniform': {
+        min: Reference('number_provider'),
+        max: Reference('number_provider')
+      },
+      'minecraft:binomial': {
+        n: Reference('number_provider'),
+        p: Reference('number_provider')
+      },
+      'minecraft:score': {
+        target: Reference('scoreboard_name_provider'),
+        score: StringNode({ validator: 'objective' }),
+        scale: Opt(NumberNode())
+      }
+    }))
+
+  schemas.register('scoreboard_name_provider', ObjectWithType(
+    'loot_score_provider_type',
+    'string', 'target', 'minecraft:context',
+    null,
+    'score_provider',
+    {
+      'minecraft:fixed': {
+        name: StringNode({ validator: 'entity', params: { amount: 'multiple', type: 'entities', isScoreHolder: true } }) // FIXME: doesn't support selectors
+      },
+      'minecraft:context': {
+        target: Mod(StringNode({ enum: 'entity_source' }), { default: () => 'this' })
+      }
+    }))
+
+  schemas.register('nbt_provider', ObjectWithType(
+    'loot_nbt_provider_type',
+    'string', 'target', 'minecraft:context',
+    null,
+    'nbt_provider',
+    {
+      'minecraft:storage': {
+        source: StringNode({ validator: 'resource', params: { pool: '$storage' } })
+      },
+      'minecraft:context': {
+        target: Mod(StringNode({ enum: 'copy_source' }), { default: () => 'this' })
+      }
+    }
+  ))
+
+  FloatProvider = (config?: MinMaxConfig) => ObjectWithType(
+    'float_provider_type',
+    'number', 'value', 'minecraft:constant',
+    null,
+    'float_provider',
+    {
+      'minecraft:constant': {
+        value: NumberNode(config)
+      },
+      'minecraft:uniform': {
+        value: ObjectNode({
+          min_inclusive: NumberNode(config),
+          max_exclusive: NumberNode(config)
+        })
+      },
+      'minecraft:clamped_normal': {
+        value: ObjectNode({
+          min: NumberNode(),
+          max: NumberNode(),
+          mean: NumberNode(),
+          deviation: NumberNode()
+        })
+      },
+      'minecraft:trapezoid': {
+        value: ObjectNode({
+          min: NumberNode(),
+          max: NumberNode(),
+          plateau: NumberNode()
+        })
+      }
+    }
+  )
+
+  schemas.register('float_provider', FloatProvider())
+
+  IntProvider = (config?: MinMaxConfig) => ObjectWithType(
+    'int_provider_type',
+    'number', 'value', 'minecraft:constant',
+    null,
+    'int_provider',
+    {
+      'minecraft:constant': {
+        value: NumberNode({ integer: true, ...config })
+      },
+      'minecraft:uniform': {
+        value: ObjectNode({
+          min_inclusive: NumberNode({ integer: true, ...config }),
+          max_inclusive: NumberNode({ integer: true, ...config })
+        })
+      },
+      'minecraft:biased_to_bottom': {
+        value: ObjectNode({
+          min_inclusive: NumberNode({ integer: true, ...config }),
+          max_inclusive: NumberNode({ integer: true, ...config })
+        })
+      },
+      'minecraft:clamped': {
+        value: ObjectNode({
+          min_inclusive: NumberNode({ integer: true, ...config }),
+          max_inclusive: NumberNode({ integer: true, ...config }),
+          source: Reference('int_provider')
+        })
+      }
+    }
+  )
+
+  schemas.register('int_provider', IntProvider())
+
+  schemas.register('vertical_anchor', ChoiceNode(
+    ['absolute', 'above_bottom', 'below_top'].map(t => ({
+      type: t,
+      match: v => v?.[t] !== undefined,
+      change: v => ({ [t]: v.absolute ?? v.above_bottom ?? v.below_top ?? 0 }),
+      node: ObjectNode({
+        [t]: NumberNode({ integer: true, min: -2048, max: 2047 })
+      })
+    })),
+    { context: 'vertical_anchor' }
+  ))
+
+  schemas.register('height_provider', ObjectWithType(
+    'height_provider_type',
+    'number', 'value', 'minecraft:constant',
+    null,
+    'height_provider',
+    {
+      'minecraft:constant': {
+        value: Reference('vertical_anchor')
+      },
+      'minecraft:uniform': {
+        min_inclusive: Reference('vertical_anchor'),
+        max_inclusive: Reference('vertical_anchor')
+      },
+      'minecraft:biased_to_bottom': {
+        min_inclusive: Reference('vertical_anchor'),
+        max_inclusive: Reference('vertical_anchor'),
+        inner: Opt(NumberNode({ integer: true, min: 1 }))
+      },
+      'minecraft:very_biased_to_bottom': {
+        min_inclusive: Reference('vertical_anchor'),
+        max_inclusive: Reference('vertical_anchor'),
+        inner: Opt(NumberNode({ integer: true, min: 1 }))
+      },
+      'minecraft:trapezoid': {
+        min_inclusive: Reference('vertical_anchor'),
+        max_inclusive: Reference('vertical_anchor'),
+        plateau: Opt(NumberNode({ integer: true }))
+      }
+    }
+  ))
+
+  ConditionCases = (entitySourceNode: INode<any> = StringNode({ enum: 'entity_source' })) => ({
     'minecraft:alternative': {
       terms: ListNode(
         Reference('condition')
@@ -211,14 +398,14 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
       predicate: Reference('damage_source_predicate')
     },
     'minecraft:entity_properties': {
-      entity: StringNode({ enum: 'entity_source' }),
+      entity: entitySourceNode,
       predicate: Reference('entity_predicate')
     },
     'minecraft:entity_scores': {
-      entity: StringNode({ enum: 'entity_source' }),
+      entity: entitySourceNode,
       scores: MapNode(
         StringNode({ validator: 'objective' }),
-        Range({ forceRange: true })
+        Reference('int_range')
       )
     },
     'minecraft:inverted': {
@@ -253,13 +440,149 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
       )
     },
     'minecraft:time_check': {
-      value: Range(),
-      period: Opt(NumberNode())
+      value: Reference('int_range'),
+      period: Opt(NumberNode({ integer: true }))
+    },
+    'minecraft:value_check': {
+      value: Reference('number_provider'),
+      range: Reference('int_range')
     },
     'minecraft:weather_check': {
       raining: Opt(BooleanNode()),
       thundering: Opt(BooleanNode())
     }
+  })
+
+  FunctionCases = (conditions: NodeChildren, copySourceNode: INode<any> = StringNode({ enum: 'copy_source' }), entitySourceNode: INode<any> = StringNode({ enum: 'entity_source' })) => {
+    const cases: NestedNodeChildren = {
+      'minecraft:apply_bonus': {
+        enchantment: StringNode({ validator: 'resource', params: { pool: 'enchantment' } }),
+        formula: StringNode({ validator: 'resource', params: { pool: collections.get('loot_table_apply_bonus_formula') } }),
+        parameters: Mod(ObjectNode({
+          bonusMultiplier: Mod(NumberNode(), {
+            enabled: path => path.pop().push('formula').get() === 'minecraft:uniform_bonus_count'
+          }),
+          extra: Mod(NumberNode(), {
+            enabled: path => path.pop().push('formula').get() === 'minecraft:binomial_with_bonus_count'
+          }),
+          probability: Mod(NumberNode(), {
+            enabled: path => path.pop().push('formula').get() === 'minecraft:binomial_with_bonus_count'
+          })
+        }), {
+          enabled: path => path.push('formula').get() !== 'minecraft:ore_drops'
+        })
+      },
+      'minecraft:copy_name': {
+        source: copySourceNode
+      },
+      'minecraft:copy_nbt': {
+        source: Reference('nbt_provider'),
+        ops: ListNode(
+          ObjectNode({
+            source: StringNode({ validator: 'nbt_path', params: { category: { getter: 'copy_source', path: ['pop', 'pop', 'pop', { push: 'source' }] } } }),
+            target: StringNode({ validator: 'nbt_path', params: { category: 'minecraft:item' } }),
+            op: StringNode({ enum: ['replace', 'append', 'merge'] })
+          }, { context: 'nbt_operation' })
+        )
+      },
+      'minecraft:copy_state': {
+        block: StringNode({ validator: 'resource', params: { pool: 'block' } }),
+        properties: ListNode(
+          StringNode({ validator: 'block_state_key', params: { id: ['pop', 'pop', { push: 'block' }] } })
+        )
+      },
+      'minecraft:enchant_randomly': {
+        enchantments: Opt(ListNode(
+          StringNode({ validator: 'resource', params: { pool: 'enchantment' } })
+        ))
+      },
+      'minecraft:enchant_with_levels': {
+        levels: Reference('number_provider'),
+        treasure: Opt(BooleanNode())
+      },
+      'minecraft:exploration_map': {
+        destination: Opt(StringNode({ enum: 'map_feature' })),
+        decoration: Opt(StringNode({ enum: 'map_decoration' })),
+        zoom: Opt(NumberNode({ integer: true })),
+        search_radius: Opt(NumberNode({ integer: true })),
+        skip_existing_chunks: Opt(BooleanNode())
+      },
+      'minecraft:fill_player_head': {
+        entity: entitySourceNode
+      },
+      'minecraft:limit_count': {
+        limit: Reference('int_range')
+      },
+      'minecraft:looting_enchant': {
+        count: Reference('number_provider'),
+        limit: Opt(NumberNode({ integer: true }))
+      },
+      'minecraft:set_attributes': {
+        modifiers: ListNode(
+          Reference('attribute_modifier')
+        )
+      },
+      'minecraft:set_banner_pattern': {
+        patterns: ListNode(
+          ObjectNode({
+            pattern: StringNode({ enum: 'banner_pattern' }),
+            color: StringNode({ enum: 'dye_color' })
+          })
+        ),
+        append: Opt(BooleanNode())
+      },
+      'minecraft:set_contents': {
+        entries: ListNode(
+          Reference('loot_entry')
+        )
+      },
+      'minecraft:set_count': {
+        count: Reference('number_provider'),
+        add: Opt(BooleanNode())
+      },
+      'minecraft:set_damage': {
+        damage: Reference('number_provider'),
+        add: Opt(BooleanNode())
+      },
+      'minecraft:set_enchantments': {
+        enchantments: MapNode(
+          StringNode({ validator: 'resource', params: { pool: 'enchantment' } }),
+          Reference('number_provider')
+        ),
+        add: Opt(BooleanNode())
+      },
+      'minecraft:set_loot_table': {
+        name: StringNode({ validator: 'resource', params: { pool: '$loot_table' } }),
+        seed: Opt(NumberNode({ integer: true }))
+      },
+      'minecraft:set_lore': {
+        entity: Opt(entitySourceNode),
+        lore: ListNode(
+          Reference('text_component')
+        ),
+        replace: Opt(BooleanNode())
+      },
+      'minecraft:set_name': {
+        entity: Opt(entitySourceNode),
+        name: Opt(Reference('text_component'))
+      },
+      'minecraft:set_nbt': {
+        tag: StringNode({ validator: 'nbt', params: { registry: { category: 'minecraft:item' } } })
+      },
+      'minecraft:set_stew_effect': {
+        effects: Opt(ListNode(
+          ObjectNode({
+            type: StringNode({ validator: 'resource', params: { pool: 'mob_effect' } }),
+            duration: Reference('number_provider')
+          })
+        ))
+      }
+    }
+    const res: NestedNodeChildren = {}
+    collections.get('loot_function_type').forEach(f => {
+      res[f] = {...cases[f], ...conditions }
+    })
+    return res
   }
 
   DimensionTypePresets = (node: INode<any>) => ObjectOrPreset(
@@ -283,6 +606,8 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         logical_height: 128,
         effects: 'minecraft:the_nether',
         infiniburn: 'minecraft:infiniburn_nether',
+        min_y: 0,
+        height: 256,
       },
       'minecraft:the_end': {
         name: 'minecraft:the_end',
@@ -300,10 +625,12 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         logical_height: 256,
         effects: 'minecraft:the_end',
         infiniburn: 'minecraft:infiniburn_end',
+        min_y: 0,
+        height: 256,
       }
     }
   )
-  
+
   NoiseSettingsPresets = (node: INode<any>) => ObjectOrPreset(
     StringNode({ validator: 'resource', params: { pool: '$worldgen/noise_settings' } }),
     node,
@@ -315,14 +642,18 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         bedrock_floor_position: 0,
         sea_level: 32,
         disable_mob_generation: true,
+        noise_caves_enabled: false,
+        aquifers_enabled: false,
+        deepslate_enabled: false,
         noise: {
+          min_y: 0,
+          height: 128,
           density_factor: 0,
           density_offset: 0.019921875,
           simplex_surface_noise: false,
           random_density_offset: false,
           size_horizontal: 1,
           size_vertical: 2,
-          height: 128,
           sampling: {
             xz_scale: 1,
             y_scale: 3,
@@ -356,7 +687,12 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         bedrock_floor_position: -10,
         sea_level: 0,
         disable_mob_generation: true,
+        noise_caves_enabled: false,
+        aquifers_enabled: false,
+        deepslate_enabled: false,
         noise: {
+          min_y: 0,
+          height: 128,
           density_factor: 0,
           density_offset: 0,
           simplex_surface_noise: true,
@@ -364,7 +700,6 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
           island_noise_override: true,
           size_horizontal: 2,
           size_vertical: 1,
-          height: 128,
           sampling: {
             xz_scale: 2,
             y_scale: 1,
@@ -395,7 +730,12 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         bedrock_floor_position: 0,
         sea_level: 63,
         disable_mob_generation: false,
+        noise_caves_enabled: true,
+        aquifers_enabled: true,
+        deepslate_enabled: true,
         noise: {
+          min_y: 0,
+          height: 256,
           density_factor: 1,
           density_offset: -0.46875,
           simplex_surface_noise: true,
@@ -403,7 +743,6 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
           amplified: true,
           size_horizontal: 1,
           size_vertical: 2,
-          height: 256,
           sampling: {
             xz_scale: 1,
             y_scale: 1,
@@ -437,14 +776,18 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         bedrock_floor_position: 0,
         sea_level: 32,
         disable_mob_generation: true,
+        noise_caves_enabled: false,
+        aquifers_enabled: false,
+        deepslate_enabled: false,
         noise: {
+          min_y: 0,
+          height: 128,
           density_factor: 0,
           density_offset: 0.019921875,
           simplex_surface_noise: false,
           random_density_offset: false,
           size_horizontal: 1,
           size_vertical: 2,
-          height: 128,
           sampling: {
             xz_scale: 1,
             y_scale: 3,
@@ -478,7 +821,12 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         bedrock_floor_position: -10,
         sea_level: 0,
         disable_mob_generation: true,
+        noise_caves_enabled: false,
+        aquifers_enabled: false,
+        deepslate_enabled: false,
         noise: {
+          min_y: 0,
+          height: 128,
           density_factor: 0,
           density_offset: 0,
           simplex_surface_noise: true,
@@ -486,7 +834,6 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
           island_noise_override: true,
           size_horizontal: 2,
           size_vertical: 1,
-          height: 128,
           sampling: {
             xz_scale: 2,
             y_scale: 1,
