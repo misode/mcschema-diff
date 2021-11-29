@@ -13,6 +13,8 @@ import {
   ModelPath,
   Errors,
   NodeOptions,
+  ChoiceNode,
+  ListNode,
 } from '@mcschema/core'
 import { DefaultNoiseSettings } from '../Common'
 
@@ -21,49 +23,34 @@ export function initNoiseSettingsSchemas(schemas: SchemaRegistry, collections: C
   const StringNode = RawStringNode.bind(undefined, collections)
 
   schemas.register('noise_settings', Mod(ObjectNode({
-    name: Mod(StringNode({ validator: 'resource', params: { pool: '$worldgen/noise_settings', isDefinition: true } }), {
-      enabled: (path) => path.getArray().length > 0
-    }),
-    bedrock_roof_position: NumberNode({ integer: true }),
-    bedrock_floor_position: NumberNode({ integer: true }),
     sea_level: NumberNode({ integer: true }),
-    min_surface_level: NumberNode({ integer: true }),
     disable_mob_generation: BooleanNode(),
     noise_caves_enabled: BooleanNode(),
     noodle_caves_enabled: BooleanNode(),
     aquifers_enabled: BooleanNode(),
-    deepslate_enabled: BooleanNode(),
     ore_veins_enabled: BooleanNode(),
+    legacy_random_source: BooleanNode(),
     default_block: Reference('block_state'),
     default_fluid: Reference('block_state'),
     noise: ObjectNode({
       min_y: NumberNode({ integer: true, min: -2048, max: 2047 }),
       height: NumberNode({ integer: true, min: 0, max: 4096 }),
-      density_factor: NumberNode(),
-      density_offset: NumberNode(),
       size_horizontal: NumberNode({ integer: true }),
       size_vertical: NumberNode({ integer: true }),
-      simplex_surface_noise: BooleanNode(),
-      random_density_offset: Opt(BooleanNode()),
       island_noise_override: Opt(BooleanNode()),
       amplified: Opt(BooleanNode()),
+      large_biomes: Opt(BooleanNode()),
       sampling: ObjectNode({
         xz_scale: NumberNode(),
         y_scale: NumberNode(),
         xz_factor: NumberNode(),
         y_factor: NumberNode()
       }),
-      bottom_slide: ObjectNode({
-        target: NumberNode({ integer: true }),
-        size: NumberNode({ integer: true, min: 0 }),
-        offset: NumberNode({ integer: true })
-      }),
-      top_slide: ObjectNode({
-        target: NumberNode({ integer: true }),
-        size: NumberNode({ integer: true, min: 0 }),
-        offset: NumberNode({ integer: true })
-      })
+      bottom_slide: Reference('noise_slider'),
+      top_slide: Reference('noise_slider'),
+      terrain_shaper: Reference('terrain_shaper')
     }),
+    surface_rule: Reference('material_rule'),
     structures: Reference('generator_structures')
   }, { context: 'noise_settings' }), node => ({
     default: () => DefaultNoiseSettings,
@@ -81,6 +68,12 @@ export function initNoiseSettingsSchemas(schemas: SchemaRegistry, collections: C
       return value
     }
   })))
+
+  schemas.register('noise_slider', ObjectNode({
+    target: NumberNode(),
+    size: NumberNode({ integer: true, min: 0 }),
+    offset: NumberNode({ integer: true })
+  }))
 
   schemas.register('generator_structures', ObjectNode({
     stronghold: Opt(ObjectNode({
@@ -119,5 +112,39 @@ export function initNoiseSettingsSchemas(schemas: SchemaRegistry, collections: C
       block: 'minecraft:stone',
       height: 1
     })
+  }))
+
+  schemas.register('terrain_shaper', Mod(ObjectNode({
+    offset: Reference('terrain_spline'),
+    factor: Reference('terrain_spline'),
+    jaggedness: Reference('terrain_spline'),
+  }, { context: 'terrain_shaper' }), {
+    default: () => ({
+      offset: 0,
+      factor: 0,
+      jaggedness: 0,
+    })
+  }))
+
+  schemas.register('terrain_spline', Mod(ChoiceNode([
+    {
+      type: 'number',
+      node: NumberNode()
+    },
+    {
+      type: 'object',
+      node: ObjectNode({
+        coordinate: Mod(StringNode({ enum: ['continents', 'erosion', 'weirdness', 'ridges'] }), { default: () => 'continents' }),
+        points: ListNode(
+          ObjectNode({
+            location: NumberNode(),
+            derivative: NumberNode(),
+            value: Reference('terrain_spline')
+          })
+        )
+      }, { category: 'function' })
+    }
+  ], { context: 'terrain_spline', choiceContext: 'terrain_spline' }), {
+    default: () => 0
   }))
 }

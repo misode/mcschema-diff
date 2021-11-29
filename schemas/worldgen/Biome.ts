@@ -15,15 +15,11 @@ export function initBiomeSchemas(schemas: SchemaRegistry, collections: Collectio
   const StringNode = RawStringNode.bind(undefined, collections)
 
   schemas.register('biome', Mod(ObjectNode({
-    surface_builder: StringNode({ validator: 'resource', params: { pool: '$worldgen/configured_surface_builder' } }),
-    depth: NumberNode(),
-    scale: NumberNode(),
     temperature: NumberNode(),
     downfall: NumberNode(),
     precipitation: StringNode({ enum: ['none', 'rain', 'snow'] }),
     temperature_modifier: Opt(StringNode({ enum: ['none', 'frozen'] })),
     category: StringNode({ enum: 'biome_category' }),
-    player_spawn_friendly: Opt(BooleanNode()),
     creature_spawn_probability: Opt(NumberNode({ min: 0, max: 1 })),
     effects: ObjectNode({
       sky_color: NumberNode({ color: true }),
@@ -57,14 +53,12 @@ export function initBiomeSchemas(schemas: SchemaRegistry, collections: Collectio
         probability: NumberNode({ min: 0, max: 1 })
       }))
     }),
-    starts: ListNode(
-      StringNode({ validator: 'resource', params: { pool: '$worldgen/configured_structure_feature' } })
-    ),
     spawners: MapNode(
       StringNode({ enum: [
         'monster',
         'creature',
         'ambient',
+        'axolotls',
         'underground_water_creature',
         'water_creature',
         'water_ambient',
@@ -107,15 +101,12 @@ export function initBiomeSchemas(schemas: SchemaRegistry, collections: Collectio
     ),
     features: ListNode(
       Mod(ListNode(
-        StringNode({ validator: 'resource', params: { pool: '$worldgen/configured_feature' } })
+        StringNode({ validator: 'resource', params: { pool: '$worldgen/placed_feature' } })
       ), { category: () => 'predicate' }),
-      { maxLength: 10 }
+      { maxLength: 11 }
     )
   }, { context: 'biome' }), {
     default: () => ({
-      surface_builder: 'minecraft:grass',
-      depth: 0.125,
-      scale: 0.05,
       temperature: 0.8,
       downfall: 0.4,
       precipitation: 'rain',

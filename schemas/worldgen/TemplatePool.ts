@@ -19,7 +19,6 @@ export function initTemplatePoolSchemas(schemas: SchemaRegistry, collections: Co
   const StringNode = RawStringNode.bind(undefined, collections)
 
   schemas.register('template_pool', Mod(ObjectNode({
-    name: StringNode(),
     fallback: StringNode(),
     elements: ListNode(
       Reference('template_weighted_element')
@@ -60,7 +59,7 @@ export function initTemplatePoolSchemas(schemas: SchemaRegistry, collections: Co
     [Switch]: [{ push: 'element_type' }],
     [Case]: {
       'minecraft:feature_pool_element': {
-        feature: StringNode({ validator: 'resource', params: { pool: '$worldgen/configured_feature' } })
+        feature: StringNode({ validator: 'resource', params: { pool: '$worldgen/placed_feature' } })
       },
       'minecraft:legacy_single_pool_element': {
         location: StringNode({ validator: 'resource', params: { pool: '$structure' }}),
