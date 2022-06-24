@@ -2,6 +2,8 @@ import { CollectionRegistry } from '@mcschema/core'
 
 export function initCollections(collections: CollectionRegistry) {
   collections.register('advancement_trigger', [
+    'minecraft:allay_drop_item_on_block',
+    'minecraft:avoid_vibration',
     'minecraft:bee_nest_destroyed',
     'minecraft:bred_animals',
     'minecraft:brewed_potion',
@@ -23,6 +25,7 @@ export function initCollections(collections: CollectionRegistry) {
     'minecraft:inventory_changed',
     'minecraft:item_durability_changed',
     'minecraft:item_used_on_block',
+    'minecraft:kill_mob_near_sculk_catalyst',
     'minecraft:killed_by_crossbow',
     'minecraft:levitation',
     'minecraft:lightning_strike',
@@ -44,6 +47,7 @@ export function initCollections(collections: CollectionRegistry) {
     'minecraft:target_hit',
     'minecraft:tick',
     'minecraft:thrown_item_picked_up_by_entity',
+    'minecraft:thrown_item_picked_up_by_player',
     'minecraft:used_ender_eye',
     'minecraft:used_totem',
     'minecraft:using_item',
@@ -250,6 +254,20 @@ export function initCollections(collections: CollectionRegistry) {
   collections.register('generation_step', [
     'air',
     'liquid'
+  ])
+
+  collections.register('decoration_step', [
+    'raw_generation',
+    'lakes',
+    'local_modifications',
+    'underground_structures',
+    'surface_structures',
+    'strongholds',
+    'underground_ores',
+    'underground_decoration',
+    'fluid_springs',
+    'vegetal_decoration',
+    'top_layer_modification'
   ])
 
   collections.register('loot_context_type', [

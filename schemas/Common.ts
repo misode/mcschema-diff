@@ -23,34 +23,12 @@ import {
 export let ConditionCases: (entitySourceNode?: INode<any>) => NestedNodeChildren
 export let FunctionCases: (conditions: NodeChildren, copySourceNode?: INode<any>, entitySourceNode?: INode<any>) => NestedNodeChildren
 
-export const DefaultDimensionType = {
-  ultrawarm: false,
-  natural: true,
-  piglin_safe: false,
-  respawn_anchor_works: false,
-  bed_works: true,
-  has_raids: true,
-  has_skylight: true,
-  has_ceiling: false,
-  coordinate_scale: 1,
-  ambient_light: 0,
-  logical_height: 256,
-  infiniburn: '#minecraft:infiniburn_overworld',
-  min_y: 0,
-  height: 256,
-}
-export let DimensionTypePresets: (node: INode<any>) => INode<any>
-
 export const DefaultNoiseSettings = {
-	bedrock_roof_position: -2147483648,
-	bedrock_floor_position: 0,
 	sea_level: 63,
-  noise_caves_enabled: true,
-	deepslate_enabled: true,
 	ore_veins_enabled: true,
-	noodle_caves_enabled: true,
 	disable_mob_generation: false,
 	aquifers_enabled: true,
+  legacy_random_source: false,
 	default_block: {
     Name: 'minecraft:stone'
 	},
@@ -65,8 +43,6 @@ export const DefaultNoiseSettings = {
 		height: 384,
 		size_horizontal: 1,
 		size_vertical: 2,
-		density_factor: 1,
-		density_offset: -0.51875,
 		top_slide: {
 			target: -0.078125,
 			size: 2,
@@ -89,11 +65,30 @@ export const DefaultNoiseSettings = {
       jaggedness: 0
     }
 	},
+  noise_router: {
+    barrier: 0,
+    fluid_level_floodedness: 0,
+    fluid_level_spread: 0,
+    lava: 0,
+    temperature: 0,
+    vegetation: 0,
+    continents: 0,
+    erosion: 0,
+    depth: 0,
+    ridges: 0,
+    initial_density_without_jaggedness: 0,
+    final_density: {
+      type: 'minecraft:interpolated',
+      argument: 'minecraft:overworld/base_3d_noise'
+    },
+    vein_toggle: 0,
+    vein_ridged: 0,
+    vein_gap: 0,
+  },
   surface_rule: {
     type: 'minecraft:sequence',
     sequence: []
-  },
-  structures: {}
+  }
 }
 export let NoiseSettingsPresets: (node: INode) => INode
 
@@ -111,8 +106,10 @@ type InclusiveRangeConfig = {
 }
 export let InclusiveRange: (config?: InclusiveRangeConfig) => INode
 
+type NonTagResources = Exclude<ResourceType, `$tag/${string}`>
+
 type TagConfig = {
-  resource: ResourceType,
+  resource: NonTagResources,
   inlineSchema?: string,
 }
 export let Tag: (config: TagConfig) => INode
@@ -414,6 +411,14 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         min_inclusive: Reference('vertical_anchor'),
         max_inclusive: Reference('vertical_anchor'),
         plateau: Opt(NumberNode({ integer: true }))
+      },
+      'minecraft:weighted_list': {
+        distribution: ListNode(
+          ObjectNode({
+            weight: NumberNode({ integer: true }),
+            data: Reference('int_provider'),
+          })
+        )
       }
     }
   ))
@@ -592,7 +597,7 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         treasure: Opt(BooleanNode())
       },
       'minecraft:exploration_map': {
-        destination: Opt(StringNode({ enum: 'map_feature' })),
+        destination: Opt(Tag({ resource: '$worldgen/structure' })),
         decoration: Opt(StringNode({ enum: 'map_decoration' })),
         zoom: Opt(NumberNode({ integer: true })),
         search_radius: Opt(NumberNode({ integer: true })),
@@ -643,6 +648,9 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         ),
         add: Opt(BooleanNode())
       },
+      'minecraft:set_instrument': {
+        options: StringNode({ validator: 'resource', params: { pool: 'instrument', requireTag: true } })
+      },
       'minecraft:set_loot_table': {
         type: StringNode({ validator: 'resource', params: { pool: 'block_entity_type' } }),
         name: StringNode({ validator: 'resource', params: { pool: '$loot_table' } }),
@@ -681,67 +689,17 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
     return res
   }
 
-  DimensionTypePresets = (node: INode<any>) => ObjectOrPreset(
-    StringNode({ validator: 'resource', params: { pool: '$dimension_type' } }),
-    node,
-    {
-      'minecraft:overworld': DefaultDimensionType,
-      'minecraft:the_nether': {
-        name: 'minecraft:the_nether',
-        ultrawarm: true,
-        natural: false,
-        shrunk: true,
-        piglin_safe: true,
-        respawn_anchor_works: true,
-        bed_works: false,
-        has_raids: false,
-        has_skylight: false,
-        has_ceiling: true,
-        ambient_light: 0.1,
-        fixed_time: 18000,
-        logical_height: 128,
-        effects: 'minecraft:the_nether',
-        infiniburn: '#minecraft:infiniburn_nether',
-        min_y: 0,
-        height: 256,
-      },
-      'minecraft:the_end': {
-        name: 'minecraft:the_end',
-        ultrawarm: false,
-        natural: false,
-        shrunk: false,
-        piglin_safe: false,
-        respawn_anchor_works: false,
-        bed_works: false,
-        has_raids: true,
-        has_skylight: false,
-        has_ceiling: false,
-        ambient_light: 0,
-        fixed_time: 6000,
-        logical_height: 256,
-        effects: 'minecraft:the_end',
-        infiniburn: '#minecraft:infiniburn_end',
-        min_y: 0,
-        height: 256,
-      }
-    }
-  )
-
   NoiseSettingsPresets = (node: INode<any>) => ObjectOrPreset(
     StringNode({ validator: 'resource', params: { pool: '$worldgen/noise_settings' } }),
     node,
     {
       'minecraft:overworld': DefaultNoiseSettings,
       'minecraft:nether': {
-        bedrock_roof_position: 0,
-        bedrock_floor_position: 0,
         sea_level: 32,
-        noise_caves_enabled: false,
-        deepslate_enabled: false,
         ore_veins_enabled: false,
-        noodle_caves_enabled: false,
         disable_mob_generation: false,
         aquifers_enabled: false,
+        legacy_random_source: true,
         default_block: {
           Name: 'minecraft:netherrack'
         },
@@ -756,8 +714,6 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
           height: 128,
           size_horizontal: 1,
           size_vertical: 2,
-          density_factor: 0,
-          density_offset: -0.030078125,
           top_slide: {
             target: 0.9375,
             size: 3,
@@ -780,22 +736,37 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
             jaggedness: 0
           }
         },
+        noise_router: {
+          barrier: 0,
+          fluid_level_floodedness: 0,
+          fluid_level_spread: 0,
+          lava: 0,
+          temperature: 0,
+          vegetation: 0,
+          continents: 0,
+          erosion: 0,
+          depth: 0,
+          ridges: 0,
+          initial_density_without_jaggedness: 0,
+          final_density: {
+            type: 'minecraft:interpolated',
+            argument: 'minecraft:overworld/base_3d_noise'
+          },
+          vein_toggle: 0,
+          vein_ridged: 0,
+          vein_gap: 0,
+        },
         surface_rule: {
           type: 'minecraft:sequence',
           sequence: []
-        },
-        structures: {}
+        }
       },
       'minecraft:end': {
-        bedrock_roof_position: -2147483648,
-        bedrock_floor_position: -2147483648,
         sea_level: 0,
-        noise_caves_enabled: false,
-        deepslate_enabled: false,
         ore_veins_enabled: false,
-        noodle_caves_enabled: false,
         disable_mob_generation: false,
         aquifers_enabled: false,
+        legacy_random_source: true,
         default_block: {
           Name: 'minecraft:end_stone'
         },
@@ -807,8 +778,6 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
           height: 128,
           size_horizontal: 2,
           size_vertical: 1,
-          density_factor: 0,
-          density_offset: 0,
           top_slide: {
             target: -23.4375,
             size: 64,
@@ -831,22 +800,37 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
             jaggedness: 0
           }
         },
+        noise_router: {
+          barrier: 0,
+          fluid_level_floodedness: 0,
+          fluid_level_spread: 0,
+          lava: 0,
+          temperature: 0,
+          vegetation: 0,
+          continents: 0,
+          erosion: 0,
+          depth: 0,
+          ridges: 0,
+          initial_density_without_jaggedness: 0,
+          final_density: {
+            type: 'minecraft:interpolated',
+            argument: 'minecraft:overworld/base_3d_noise'
+          },
+          vein_toggle: 0,
+          vein_ridged: 0,
+          vein_gap: 0,
+        },
         surface_rule: {
           type: 'minecraft:sequence',
           sequence: []
-        },
-        structures: {}
+        }
       },
       'minecraft:amplified': {
-        bedrock_roof_position: -2147483648,
-        bedrock_floor_position: 0,
         sea_level: 63,
-        noise_caves_enabled: true,
-        deepslate_enabled: true,
         ore_veins_enabled: true,
-        noodle_caves_enabled: true,
         disable_mob_generation: false,
         aquifers_enabled: true,
+        legacy_random_source: false,
         default_block: {
           Name: 'minecraft:stone'
         },
@@ -861,9 +845,6 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
           height: 384,
           size_horizontal: 1,
           size_vertical: 2,
-          density_factor: 1,
-          density_offset: -0.51875,
-          amplified: true,
           top_slide: {
             target: -0.078125,
             size: 2,
@@ -886,22 +867,37 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
             jaggedness: 0
           }
         },
+        noise_router: {
+          barrier: 0,
+          fluid_level_floodedness: 0,
+          fluid_level_spread: 0,
+          lava: 0,
+          temperature: 0,
+          vegetation: 0,
+          continents: 0,
+          erosion: 0,
+          depth: 0,
+          ridges: 0,
+          initial_density_without_jaggedness: 0,
+          final_density: {
+            type: 'minecraft:interpolated',
+            argument: 'minecraft:overworld/base_3d_noise'
+          },
+          vein_toggle: 0,
+          vein_ridged: 0,
+          vein_gap: 0,
+        },
         surface_rule: {
           type: 'minecraft:sequence',
           sequence: []
         },
-        structures: {},
       },
       'minecraft:caves': {
-        bedrock_roof_position: 0,
-        bedrock_floor_position: 0,
         sea_level: 32,
-        noise_caves_enabled: false,
-        deepslate_enabled: false,
         ore_veins_enabled: false,
-        noodle_caves_enabled: false,
         disable_mob_generation: false,
         aquifers_enabled: false,
+        legacy_random_source: true,
         default_block: {
           Name: 'minecraft:stone'
         },
@@ -916,8 +912,6 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
           height: 128,
           size_horizontal: 1,
           size_vertical: 2,
-          density_factor: 0,
-          density_offset: -0.030078125,
           top_slide: {
             target: 0.9375,
             size: 3,
@@ -940,22 +934,37 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
             jaggedness: 0
           }
         },
+        noise_router: {
+          barrier: 0,
+          fluid_level_floodedness: 0,
+          fluid_level_spread: 0,
+          lava: 0,
+          temperature: 0,
+          vegetation: 0,
+          continents: 0,
+          erosion: 0,
+          depth: 0,
+          ridges: 0,
+          initial_density_without_jaggedness: 0,
+          final_density: {
+            type: 'minecraft:interpolated',
+            argument: 'minecraft:overworld/base_3d_noise'
+          },
+          vein_toggle: 0,
+          vein_ridged: 0,
+          vein_gap: 0,
+        },
         surface_rule: {
           type: 'minecraft:sequence',
           sequence: []
-        },
-        structures: {}
+        }
       },
       'minecraft:floating_islands': {
-        bedrock_roof_position: -2147483648,
-        bedrock_floor_position: -2147483648,
         sea_level: 0,
-        noise_caves_enabled: false,
-        deepslate_enabled: false,
         ore_veins_enabled: false,
-        noodle_caves_enabled: false,
         disable_mob_generation: false,
         aquifers_enabled: false,
+        legacy_random_source: true,
         default_block: {
           Name: 'minecraft:stone'
         },
@@ -970,8 +979,6 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
           height: 128,
           size_horizontal: 2,
           size_vertical: 1,
-          density_factor: 0,
-          density_offset: 0,
           top_slide: {
             target: -23.4375,
             size: 64,
@@ -994,11 +1001,30 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
             jaggedness: 0
           }
         },
+        noise_router: {
+          barrier: 0,
+          fluid_level_floodedness: 0,
+          fluid_level_spread: 0,
+          lava: 0,
+          temperature: 0,
+          vegetation: 0,
+          continents: 0,
+          erosion: 0,
+          depth: 0,
+          ridges: 0,
+          initial_density_without_jaggedness: 0,
+          final_density: {
+            type: 'minecraft:interpolated',
+            argument: 'minecraft:overworld/base_3d_noise'
+          },
+          vein_toggle: 0,
+          vein_ridged: 0,
+          vein_gap: 0,
+        },
         surface_rule: {
           type: 'minecraft:sequence',
           sequence: []
-        },
-        structures: {}
+        }
       }
     }
   )

@@ -10,6 +10,7 @@ import {
   NumberNode,
 	INode,
 	ChoiceNode,
+	ListNode,
 } from '@mcschema/core'
 
 export let DensityFunction: INode
@@ -82,6 +83,9 @@ export function initDensityFunctionSchemas(schemas: SchemaRegistry, collections:
 				min: NoiseRange,
 				max: NoiseRange,
 			},
+			'minecraft:constant': {
+				argument: NumberNode(),
+			},
 			'minecraft:cube': {
 				argument: DensityFunction,
 			},
@@ -110,6 +114,13 @@ export function initDensityFunctionSchemas(schemas: SchemaRegistry, collections:
 				noise: NoiseParameters,
 				xz_scale: NumberNode(),
 				y_scale: NumberNode(),
+			},
+			'minecraft:old_blended_noise': {
+        xz_scale: NumberNode(),
+        y_scale: NumberNode(),
+        xz_factor: NumberNode(),
+        y_factor: NumberNode(),
+				smear_scale_multiplier: NumberNode({ min: 1, max: 8 }),
 			},
 			'minecraft:quarter_negative': {
 				argument: DensityFunction,
@@ -141,19 +152,14 @@ export function initDensityFunctionSchemas(schemas: SchemaRegistry, collections:
 			'minecraft:slide': {
 				argument: DensityFunction,
 			},
+			'minecraft:spline': {
+				spline: Reference('cubic_spline'),
+			},
 			'minecraft:square': {
 				argument: DensityFunction,
 			},
 			'minecraft:squeeze': {
 				argument: DensityFunction,
-			},
-			'minecraft:terrain_shaper_spline': {
-				spline: StringNode({ enum: ['offset', 'factor', 'jaggedness'] }),
-				min_value: NoiseRange,
-				max_value: NoiseRange,
-				continentalness: DensityFunction,
-				erosion: DensityFunction,
-				weirdness: DensityFunction,
 			},
 			'minecraft:weird_scaled_sampler': {
 				rarity_value_mapper: StringNode({ enum: ['type_1', 'type_2'] }),
@@ -167,19 +173,34 @@ export function initDensityFunctionSchemas(schemas: SchemaRegistry, collections:
 				to_value: NoiseRange,
 			},
 		}
-	}, { context: 'density_function', disableSwitchContext: true }), node => ({
+	}, { context: 'density_function', disableSwitchContext: true }), {
 		default: () => ({
 			type: 'minecraft:noise',
 			noise: 'minecraft:cave_entrance',
 			xz_scale: 0.75,
 			y_scale: 0.5
-		}),
-		validate: (path, value, errors, options) => {
-			value = node.validate(path, value, errors, options)
-			if (typeof value === 'object' && value !== null && value.type === 'minecraft:constant') {
-				return 0
-			}
-			return value
-		}
-	})))
+		})
+	}))
+
+  schemas.register('cubic_spline', Mod(ChoiceNode([
+    {
+      type: 'number',
+      node: NumberNode()
+    },
+    {
+      type: 'object',
+      node: ObjectNode({
+        coordinate: DensityFunction,
+        points: ListNode(
+          ObjectNode({
+            location: NumberNode(),
+            derivative: NumberNode(),
+            value: Reference('cubic_spline')
+          })
+        )
+      }, { category: 'function' })
+    }
+  ], { context: 'terrain_spline', choiceContext: 'terrain_spline' }), {
+    default: () => 0
+  }))
 }

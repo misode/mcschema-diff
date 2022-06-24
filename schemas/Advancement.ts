@@ -95,6 +95,10 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
       }),
       [Switch]: ['pop', { push: 'trigger' }],
       [Case]: {
+        'minecraft:allay_drop_item_on_block': {
+          item: Opt(Reference('item_predicate')),
+          location: Opt(Reference('location_predicate'))
+        },
         'minecraft:bee_nest_destroyed': {
           block: Opt(StringNode({ validator: 'resource', params: { pool: 'block' } })),
           num_bees_inside: Opt(NumberNode({ integer: true })),
@@ -130,10 +134,7 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
         'minecraft:effects_changed': {
           effects: Opt(MapNode(
             StringNode({ validator: 'resource', params: { pool: 'mob_effect' } }),
-            ObjectNode({
-              amplifier: Reference('int_bounds'),
-              duration: Reference('int_bounds')
-            })
+            Reference('status_effect_predicate')
           )),
           source: Opt(EntityPredicate)
         },
@@ -167,9 +168,6 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
           entity: EntityPredicate,
           item: Opt(Reference('item_predicate'))
         },
-        'minecraft:hero_of_the_village': {
-          location: Opt(Reference('location_predicate'))
-        },
         'minecraft:inventory_changed': {
           slots: Opt(ObjectNode({
             empty: Reference('int_bounds'),
@@ -189,6 +187,10 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
           item: Opt(Reference('item_predicate')),
           location: Opt(Reference('location_predicate'))
         },
+        'minecraft:kill_mob_near_sculk_catalyst': {
+          entity: EntityPredicate,
+          killing_blow: Opt(Reference('damage_source_predicate'))
+        },
         'minecraft:killed_by_crossbow': {
           unique_entity_types: Reference('int_bounds'),
           victims: Opt(ListNode(
@@ -202,9 +204,6 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
         'minecraft:lightning_strike': {
           lightning: EntityPredicate,
           bystander: EntityPredicate,
-        },
-        'minecraft:location': {
-          location: Opt(Reference('location_predicate'))
         },
         'minecraft:nether_travel': {
           start_position: Opt(Reference('location_predicate')),
@@ -242,9 +241,6 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
           start_position: Opt(Reference('location_predicate')),
           distance: Opt(Reference('distance_predicate'))
         },
-        'minecraft:slept_in_bed': {
-          location: Opt(Reference('location_predicate'))
-        },
         'minecraft:slide_down_block': {
           block: Opt(StringNode({ validator: 'resource', params: { pool: 'block' } }))
         },
@@ -263,7 +259,11 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
           signal_strength: Reference('int_bounds')
         },
         'minecraft:thrown_item_picked_up_by_entity': {
-          entity: Opt(Reference('entity_predicate')),
+          entity: EntityPredicate,
+          item: Opt(Reference('item_predicate'))
+        },
+        'minecraft:thrown_item_picked_up_by_player': {
+          entity: EntityPredicate,
           item: Opt(Reference('item_predicate'))
         },
         'minecraft:used_ender_eye': {
@@ -276,12 +276,9 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
           item: Opt(Reference('item_predicate'))
         },
         'minecraft:villager_trade': {
-          villager: Opt(Reference('entity_predicate')),
+          villager: EntityPredicate,
           item: Opt(Reference('item_predicate'))
         },
-        'minecraft:voluntary_exile': {
-          location: Opt(Reference('location_predicate'))
-        }
       }
     }, { context: 'criterion' }))
   }, { category: 'predicate', context: 'criterion' }))

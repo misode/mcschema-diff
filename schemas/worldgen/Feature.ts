@@ -52,15 +52,6 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
     feature: PlacedFeature,
   }
 
-  const DiskConfig: NodeChildren = {
-    state: Reference('block_state'),
-    radius: IntProvider({ min: 0, max: 8 }),
-    half_height: NumberNode({ integer: true, min: 0, max: 4 }),
-    targets: ListNode(
-      Reference('block_state')
-    )
-  }
-
   const HugeMushroomConfig: NodeChildren = {
     cap_provider: Reference('block_state_provider'),
     stem_provider: Reference('block_state_provider'),
@@ -125,7 +116,12 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
           size: IntProvider({ min: 0, max: 16 }),
           rim_size: IntProvider({ min: 0, max: 16 })
         },
-        'minecraft:disk': DiskConfig,
+        'minecraft:disk': {
+          state_provider: Reference('rule_based_block_state_provider'),
+          target: Reference('block_predicate_worldgen'),
+          radius: IntProvider({ min: 0, max: 8 }),
+          half_height: NumberNode({ integer: true, min: 0, max: 4 }),
+        },
         'minecraft:dripstone_cluster': {
           floor_to_ceiling_search_range: NumberNode({ integer: true, min: 1, max: 512 }),
           height: IntProvider({ min: 0, max: 128 }),
@@ -197,7 +193,7 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
           crack: ObjectNode({
             generate_crack_chance: Opt(NumberNode({ min: 0, max: 1 })),
             base_crack_size: Opt(NumberNode({ min: 0, max: 5 })),
-            crack_point_offset: Opt(NumberNode({ min: 0, max: 10, integer: true })),
+            crack_point_offset: Opt(NumberNode({ min: 0, max: 10 })),
           }),
           noise_multiplier: Opt(NumberNode({ min: 0, max: 1 })),
           use_potential_placements_chance: Opt(NumberNode({ min: 0, max: 1 })),
@@ -210,7 +206,8 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
           max_gen_offset: Opt(NumberNode({ integer: true })),
           invalid_blocks_threshold: NumberNode({ integer: true })
         },
-        'minecraft:glow_lichen': {
+        'minecraft:multiface_growth': {
+          block: Opt(StringNode({ validator: 'resource', params: { pool: ['minecraft:glow_lichen', 'minecraft:sculk_vein'] } })),
           search_range: Opt(NumberNode({ min: 1, max: 64, integer: true })),
           chance_of_spreading: Opt(NumberNode({ min: 0, max: 1 })),
           can_place_on_floor: Opt(BooleanNode()),
@@ -227,7 +224,6 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
           planted: Opt(BooleanNode())
         },
         'minecraft:huge_red_mushroom': HugeMushroomConfig,
-        'minecraft:ice_patch': DiskConfig,
         'minecraft:iceberg': {
           state: Reference('block_state')
         },
@@ -299,6 +295,15 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
           feature: PlacedFeature
         },
         'minecraft:scattered_ore': OreConfig,
+        'minecraft:sculk_patch': {
+          charge_count: NumberNode({ integer: true, min: 1, max: 32 }),
+          amount_per_charge: NumberNode({ integer: true, min: 1, max: 500 }),
+          spread_attempts: NumberNode({ integer: true, min: 1, max: 64 }),
+          growth_rounds: NumberNode({ integer: true, min: 0, max: 8 }),
+          spread_rounds: NumberNode({ integer: true, min: 0, max: 8 }),
+          extra_rare_growths: IntProvider(),
+          catalyst_chance: NumberNode({ min: 0, max: 1 }),
+        },
         'minecraft:sea_pickle': {
           count: IntProvider({ min: 0, max: 256 })
         },
@@ -325,6 +330,28 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
           dirt_provider: Reference('block_state_provider'),
           trunk_provider: Reference('block_state_provider'),
           foliage_provider: Reference('block_state_provider'),
+          root_placer: Opt(ObjectNode({
+            type: StringNode({ validator: 'resource', params: { pool: 'worldgen/root_placer_type' } }),
+            root_provider: Reference('block_state_provider'),
+            trunk_offset_y: IntProvider(),
+            above_root_placement: Opt(ObjectNode({
+              above_root_provider: Reference('block_state_provider'),
+              above_root_placement_chance: NumberNode({ min: 0, max: 1 })
+            })),
+            [Switch]: [{ push: 'type' }],
+            [Case]: {
+              'minecraft:mangrove_root_placer': {
+                mangrove_root_placement: ObjectNode({
+                  max_root_width: NumberNode({ integer: true, min: 1, max: 12 }),
+                  max_root_length: NumberNode({ integer: true, min: 1, max: 64 }),
+                  random_skew_chance: NumberNode({ min: 0, max: 1 }),
+                  can_grow_through: Tag({ resource: 'block' }),
+                  muddy_roots_in: Tag({ resource: 'block' }),
+                  muddy_roots_provider: Reference('block_state_provider'),
+                })
+              }
+            }
+          }, { context: 'root_placer' })),
           trunk_placer: ObjectNode({
             type: StringNode({ validator: 'resource', params: { pool: 'worldgen/trunk_placer_type' } }),
             base_height: NumberNode({ integer: true, min: 0, max: 32 }),
@@ -335,6 +362,12 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
               'minecraft:bending_trunk_placer': {
                 bend_length: IntProvider({ min: 1, max: 64 }),
                 min_height_for_leaves: Opt(NumberNode({ integer: true, min: 1 }))
+              },
+              'minecraft:upwards_branching_trunk_placer': {
+                extra_branch_steps: IntProvider({ min: 1 }),
+                extra_branch_length: IntProvider({ min: 0 }),
+                place_branch_per_log_probability: NumberNode({ min: 0, max: 1 }),
+                can_grow_through: Tag({ resource: 'block' })
               }
             }
           }, { context: 'trunk_placer' }),
@@ -379,10 +412,23 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
                 'minecraft:alter_ground': {
                   provider: Reference('block_state_provider')
                 },
+                'minecraft:attached_to_leaves': {
+                  probability: NumberNode({ min: 0, max: 1 }),
+                  exclusion_radius_xz: NumberNode({ integer: true, min: 0, max: 16 }),
+                  exclusion_radius_y: NumberNode({ integer: true, min: 0, max: 16 }),
+                  required_empty_blocks: NumberNode({ integer: true, min: 1, max: 16 }),
+                  block_provider: Reference('block_state_provider'),
+                  directions: ListNode(
+                    StringNode({ enum: 'direction' })
+                  )
+                },
                 'minecraft:beehive': {
                   probability: NumberNode({ min: 0, max: 1 })
                 },
                 'minecraft:cocoa': {
+                  probability: NumberNode({ min: 0, max: 1 })
+                },
+                'minecraft:leave_vine': {
                   probability: NumberNode({ min: 0, max: 1 })
                 }
               }
@@ -538,6 +584,22 @@ export function initFeatureSchemas(schemas: SchemaRegistry, collections: Collect
   }, { context: 'block_state_provider' }), {
     default: () => ({
       type: 'minecraft:simple_state_provider'
+    })
+  }))
+
+  schemas.register('rule_based_block_state_provider', Mod(ObjectNode({
+    fallback: Reference('block_state_provider'),
+    rules: ListNode(
+      ObjectNode({
+        if_true: Reference('block_predicate_worldgen'),
+        then: Reference('block_state_provider')
+      })
+    )
+  }, { context: 'block_state_provider' }), {
+    default: () => ({
+      fallback: {
+        type: 'minecraft:simple_state_provider'
+      }
     })
   }))
 
