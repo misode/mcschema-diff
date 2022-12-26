@@ -14,24 +14,17 @@ export function initChatTypeSchemas(schemas: SchemaRegistry, collections: Collec
   const StringNode = RawStringNode.bind(undefined, collections)
 
   schemas.register('chat_type', Mod(ObjectNode({
-    chat: Opt(ObjectNode({
-      decoration: Opt(Reference('text_decoration')),
-    })),
-    overlay: Opt(ObjectNode({
-      decoration: Opt(Reference('text_decoration')),
-    })),
-    narration: Opt(ObjectNode({
-      decoration: Opt(Reference('text_decoration')),
-      priority: StringNode({ enum: ['chat', 'system'] }),
-    })),
+    chat: Reference('text_decoration'),
+    narration: Reference('text_decoration'),
   }, { context: 'chat_type' }), {
     default: () => ({
       chat: {
-        decoration: {
-          parameters: ['sender', 'content'],
-          translation_key: 'chat.type.text',
-          style: {},
-        }
+        translation_key: 'chat.type.text',
+        parameters: ['sender', 'content'],
+      },
+      narration: {
+        translation_key: 'chat.type.text.narrate',
+        parameters: ['sender', 'content'],
       }
     })
   }))
@@ -39,9 +32,9 @@ export function initChatTypeSchemas(schemas: SchemaRegistry, collections: Collec
   schemas.register('text_decoration', Mod(ObjectNode({
     translation_key: StringNode(),
     parameters: ListNode(
-      StringNode({ enum: ['sender', 'team_name', 'content'] })
+      StringNode({ enum: ['sender', 'target', 'content'] })
     ),
-    style: Reference('text_style')
+    style: Opt(Reference('text_style'))
   }, { context: 'text_decoration' }), {
     default: () => ({
       translation_key: 'chat.type.text',

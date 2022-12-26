@@ -416,7 +416,7 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         distribution: ListNode(
           ObjectNode({
             weight: NumberNode({ integer: true }),
-            data: Reference('int_provider'),
+            data: Reference('height_provider'),
           })
         )
       }
@@ -597,7 +597,7 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         treasure: Opt(BooleanNode())
       },
       'minecraft:exploration_map': {
-        destination: Opt(Tag({ resource: '$worldgen/structure' })),
+        destination: Opt(StringNode({ validator: 'resource', params: { pool: '$tag/worldgen/structure' } })),
         decoration: Opt(StringNode({ enum: 'map_decoration' })),
         zoom: Opt(NumberNode({ integer: true })),
         search_radius: Opt(NumberNode({ integer: true })),
