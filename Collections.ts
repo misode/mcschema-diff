@@ -37,13 +37,56 @@ export function initCollections(collections: CollectionRegistry) {
     'key.use'
   ])
 
-  collections.register('slot', [
+  collections.register('equipment_slot', [
     'mainhand',
     'offhand',
     'head',
     'chest',
     'legs',
-    'feet'
+    'feet',
+    'body',
+  ])
+
+  collections.register('equipment_slot_group', [
+    'any',
+    'mainhand',
+    'offhand',
+    'hand',
+    'head',
+    'chest',
+    'legs',
+    'feet',
+    'armor',
+    'body',
+  ])
+
+  const slotRange = (prefix: string, size: number) => [
+    `${prefix}.*`,
+    ...[...Array(size)].map((_, i) => `${prefix}.${i}`),
+  ]
+
+  collections.register('slot_range', [
+    'contents',
+    ...slotRange('container', 54),
+    ...slotRange('hotbar', 9),
+    ...slotRange('inventory', 27),
+    ...slotRange('enderchest', 27),
+    ...slotRange('villager', 8),
+    ...slotRange('horse', 15),
+    'weapon',
+    'weapon.mainhand',
+    'weapon.offhand',
+    'weapon.*',
+    'armor.head',
+    'armor.chest',
+    'armor.legs',
+    'armor.feet',
+    'armor.body',
+    'armor.*',
+    'horse.saddle',
+    'horse.chest',
+    'player.cursor',
+    ...slotRange('player.crafting', 4),
   ])
 
   collections.register('gamemode', [
@@ -230,14 +273,18 @@ export function initCollections(collections: CollectionRegistry) {
     'minecraft:selector',
     'minecraft:fishing',
     'minecraft:entity',
+    'minecraft:equipment',
     'minecraft:archaeology',
     'minecraft:gift',
     'minecraft:barter',
+    'minecraft:vault',
     'minecraft:advancement_reward',
     'minecraft:advancement_entity',
     'minecraft:advancement_location',
+    'minecraft:block_use',
     'minecraft:generic',
-    'minecraft:block'
+    'minecraft:block',
+    'minecraft:shearing',
   ])
 
   collections.register('banner_pattern', [
@@ -392,7 +439,6 @@ export function initCollections(collections: CollectionRegistry) {
   ])
 
   collections.register('type_specific_type', [
-    'any',
     'axolotl',
     'boat',
     'cat',
@@ -529,5 +575,55 @@ export function initCollections(collections: CollectionRegistry) {
     'food',
     'misc',
     'redstone',
+  ])
+
+  collections.register('font_option', [
+    'uniform',
+    'jp',
+  ])
+
+  collections.register('attribute_modifier_operation', [
+    'add_value',
+    'add_multiplied_base',
+    'add_multiplied_total',
+  ])
+
+  collections.register('firework_explosion_shape', [
+    'small_ball',
+    'large_ball',
+    'star',
+    'creeper',
+    'burst',
+  ])
+
+  collections.register('list_operation', [
+    'replace_all',
+    'replace_section',
+    'insert',
+    'append',
+  ])
+
+  collections.register('toggleable_data_component_type', [
+    'minecraft:trim',
+    'minecraft:dyed_color',
+    'minecraft:enchantments',
+    'minecraft:stored_enchantments',
+    'minecraft:unbreakable',
+    'minecraft:can_break',
+    'minecraft:can_place_on',
+    'minecraft:attribute_modifiers',
+  ])
+
+  collections.register('container_component_manipulators', [
+    'minecraft:container',
+    'minecraft:bundle_contents',
+    'minecraft:charged_projectiles',
+  ])
+
+  collections.register('rarity', [
+    'common',
+    'uncommon',
+    'rare',
+    'epic',
   ])
 }

@@ -11,37 +11,151 @@ import {
   SchemaRegistry,
   ChoiceNode,
   CollectionRegistry,
+  SwitchNode,
+  INode,
+  ModelPath,
   NumberNode,
 } from '@mcschema/core'
+import { Tag } from './Common'
 
 export function initPredicatesSchemas(schemas: SchemaRegistry, collections: CollectionRegistry) {
   const Reference = RawReference.bind(undefined, schemas)
   const StringNode = RawStringNode.bind(undefined, collections)
 
+  function CollectionPredicate(predicate: INode) {
+    return ObjectNode({
+      contains: Opt(ListNode(
+        predicate,
+      )),
+      count: Opt(ListNode(
+        ObjectNode({
+          test: predicate,
+          count: Reference('int_bounds'),
+        }),
+      )),
+      size: Opt(Reference('int_bounds')),
+    }, { context: 'collection_predicate' })
+  }
+
+  schemas.register('attribute_modifiers_entry_predicate', ObjectNode({
+    attribute: Opt(Tag({ resource: 'attribute' })),
+    uuid: Opt(ChoiceNode([
+      {
+        type: 'list',
+        node: ListNode(
+          NumberNode({ integer: true }),
+          { minLength: 4, maxLength: 4 },
+        ),
+      },
+      {
+        type: 'string',
+        node: StringNode({ validator: 'uuid' }),
+      },
+    ])),
+    name: Opt(StringNode()),
+    amount: Opt(Reference('float_bounds')),
+    operation: Opt(StringNode({ enum: 'attribute_modifier_operation' })),
+    slot: Opt(StringNode({ enum: 'equipment_slot_group' })),
+  }, { context: 'attribute_modifier' }))
+
+  schemas.register('firework_explosion_predicate', ObjectNode({
+    shape: Opt(StringNode({ enum: 'firework_explosion_shape' })),
+    has_trail: Opt(BooleanNode()),
+    has_twinkle: Opt(BooleanNode()),
+  }, { context: 'firework_explosion' }))
+
   schemas.register('item_predicate', ObjectNode({
-    items: Opt(ListNode(
-      StringNode({ validator: 'resource', params: { pool: 'item' } })
-    )),
-    tag: Opt(StringNode({ validator: 'resource', params: { pool: '$tag/item' } })),
-    count: Reference('int_bounds'),
-    durability: Reference('int_bounds'),
-    potion: Opt(StringNode({ validator: 'resource', params: { pool: 'potion' } })),
-    nbt: Opt(StringNode({ validator: 'nbt', params: { registry: { category: 'minecraft:item', id: ['pop', { push: 'item' }] } } })),
-    enchantments: Opt(ListNode(
-      Reference('enchantment_predicate')
+    items: Opt(Tag({ resource: 'item' })),
+    count: Opt(Reference('int_bounds')),
+    components: Opt(Reference('data_component_predicate')),
+    predicates: Opt(MapNode(
+      StringNode({ validator: 'resource', params: { pool: 'item_sub_predicate_type' } }),
+      SwitchNode([
+        ...Object.entries<INode>({
+          'minecraft:attribute_modifiers': ObjectNode({
+            modifiers: Opt(CollectionPredicate(
+              Reference('attribute_modifiers_entry_predicate')
+            )),
+          }),
+          'minecraft:bundle_contents': ObjectNode({
+            items: Opt(CollectionPredicate(
+              Reference('item_predicate')
+            ))
+          }),
+          'minecraft:container': ObjectNode({
+            items: Opt(CollectionPredicate(
+              Reference('item_predicate')
+            ))
+          }),
+          'minecraft:custom_data': ChoiceNode([
+            {
+              type: 'string',
+              node: StringNode({ validator: 'nbt', params: { registry: { category: 'minecraft:item', id: ['pop', 'pop', { push: 'item' }] } } }),
+            },
+            {
+              type: 'object',
+              node: ObjectNode({}) // TODO: any unsafe data
+            },
+          ]),
+          'minecraft:damage': ObjectNode({
+            durability: Opt(Reference('int_bounds')),
+            damage: Opt(Reference('int_bounds')),
+          }),
+          'minecraft:enchantments': ListNode(
+            Reference('enchantment_predicate')
+          ),
+          'minecraft:firework_explosion': Reference('firework_explosion_predicate'),
+          'minecraft:fireworks': ObjectNode({
+            explosions: Opt(CollectionPredicate(
+              Reference('firework_explosion_predicate')
+            )),
+            flight_duration: Opt(Reference('int_bounds')),
+          }),
+          'minecraft:potion_contents': Tag({ resource: 'potion' }),
+          'minecraft:stored_enchantments': ListNode(
+            Reference('enchantment_predicate')
+          ),
+          'minecraft:trim': ObjectNode({
+            material: Opt(Tag({ resource: '$trim_material' })),
+            pattern: Opt(Tag({ resource: '$trim_pattern' })),
+          }),
+          'minecraft:writable_book_content': ObjectNode({
+            pages: Opt(CollectionPredicate(
+              StringNode()
+            )),
+          }),
+          'minecraft:written_book_content': ObjectNode({
+            pages: Opt(CollectionPredicate(
+              Reference('text_component')
+            )),
+            author: Opt(StringNode()),
+            title: Opt(StringNode()),
+            generation: Opt(Reference('int_bounds')),
+            resolved: Opt(BooleanNode()),
+          }),
+        }).map(([key, value]) => ({
+          match: (path: ModelPath) => {
+            let last = path.last().toString()
+            if (!last.startsWith('minecraft:')) last = 'minecraft:' + last
+            return last === key
+          },
+          node: value,
+        })),
+        {
+          match: () => true,
+          node: ObjectNode({}),
+        },
+      ]),
     ))
   }, { context: 'item' }))
 
   schemas.register('enchantment_predicate', ObjectNode({
     enchantment: Opt(StringNode({ validator: 'resource', params: { pool: 'enchantment' } })),
-    levels: Reference('int_bounds')
+    levels: Opt(Reference('int_bounds'))
   }, { context: 'enchantment' }))
 
   schemas.register('block_predicate', ObjectNode({
-    blocks: Opt(ListNode(
-      StringNode({ validator: 'resource', params: { pool: 'block' } })
-    )),
-    tag: Opt(StringNode({ validator: 'resource', params: { pool: '$tag/block' } })),
+    blocks: Opt(Tag({ resource: 'block' })),
     nbt: Opt(StringNode({ validator: 'nbt', params: { registry: { category: 'minecraft:block', id: ['pop', { push: 'block' }] } } })),
     state: Opt(MapNode(
       StringNode(),
@@ -51,8 +165,7 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
   }, { context: 'block' }))
 
   schemas.register('fluid_predicate', ObjectNode({
-    fluid: Opt(StringNode({ validator: 'resource', params: { pool: 'fluid' } })),
-    tag: Opt(StringNode({ validator: 'resource', params: { pool: '$tag/fluid' } })),
+    fluids: Opt(Tag({ resource: 'fluid' })),
     state: Opt(MapNode(
       StringNode(),
       StringNode()
@@ -61,15 +174,15 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
 
   schemas.register('location_predicate', ObjectNode({
     position: Opt(ObjectNode({
-      x: Reference('float_bounds'),
-      y: Reference('float_bounds'),
-      z: Reference('float_bounds')
+      x: Opt(Reference('float_bounds')),
+      y: Opt(Reference('float_bounds')),
+      z: Opt(Reference('float_bounds'))
     })),
-    biome: Opt(StringNode({ validator: 'resource', params: { pool: '$worldgen/biome' } })),
-    structure: Opt(StringNode({ validator: 'resource', params: { pool: '$worldgen/structure' } })),
+    biomes: Opt(Tag({ resource: '$worldgen/biome' })),
+    structures: Opt(Tag({ resource: '$worldgen/structure' })),
     dimension: Opt(StringNode({ validator: 'resource', params: { pool: '$dimension' } })),
     light: Opt(ObjectNode({
-      light: Reference('int_bounds')
+      light: Opt(Reference('int_bounds'))
     })),
     smokey: Opt(BooleanNode()),
     block: Opt(Reference('block_predicate')),
@@ -79,7 +192,7 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
   schemas.register('statistic_predicate', ObjectNode({
     type: StringNode({ validator: 'resource', params: { pool: 'stat_type' } }),
     stat: StringNode(),
-    value: Reference('int_bounds'),
+    value: Opt(Reference('int_bounds')),
     [Switch]: [{ push: 'type' }],
     [Case]: {
       'minecraft:mined': {
@@ -113,66 +226,66 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
   }))
 
   schemas.register('status_effect_predicate', ObjectNode({
-    amplifier: Reference('int_bounds'),
-    duration: Reference('int_bounds'),
+    amplifier: Opt(Reference('int_bounds')),
+    duration: Opt(Reference('int_bounds')),
     ambient: Opt(BooleanNode()),
     visible: Opt(BooleanNode())
   }, { context: 'status_effect' }))
 
   schemas.register('distance_predicate', ObjectNode({
-    x: Reference('float_bounds'),
-    y: Reference('float_bounds'),
-    z: Reference('float_bounds'),
-    absolute: Reference('float_bounds'),
-    horizontal: Reference('float_bounds')
+    x: Opt(Reference('float_bounds')),
+    y: Opt(Reference('float_bounds')),
+    z: Opt(Reference('float_bounds')),
+    absolute: Opt(Reference('float_bounds')),
+    horizontal: Opt(Reference('float_bounds'))
   }, { context: 'distance' }))
 
   schemas.register('entity_predicate', ObjectNode({
-    type: Opt(StringNode({ validator: 'resource', params: { pool: 'entity_type', allowTag: true } })),
+    type: Opt(Tag({ resource: 'entity_type' })),
     type_specific: Opt(ObjectNode({
-      type: StringNode({ enum: 'type_specific_type' }),
+      type: StringNode({ validator: 'resource', params: { pool: 'entity_sub_predicate_type' } }),
       [Switch]: [{ push: 'type' }],
       [Case]: {
-        'axolotl': {
+        'minecraft:axolotl': {
           variant: Opt(StringNode({ enum: 'axolotl_variant' }))
         },
-        'boat': {
+        'minecraft:boat': {
           variant: Opt(StringNode({ enum: 'boat_variant' }))
         },
-        'cat': {
-          variant: Opt(StringNode({ validator: 'resource', params: { pool: 'cat_variant' } }))
+        'minecraft:cat': {
+          variant: Opt(Tag({ resource: 'cat_variant' }))
         },
-        'fishing_hook': {
+        'minecraft:fishing_hook': {
           in_open_water: Opt(BooleanNode())
         },
-        'fox': {
+        'minecraft:fox': {
           variant: Opt(StringNode({ enum: 'fox_variant' }))
         },
-        'frog': {
-          variant: Opt(StringNode({ validator: 'resource', params: { pool: 'frog_variant' } }))
+        'minecraft:frog': {
+          variant: Opt(Tag({ resource: 'frog_variant' }))
         },
-        'horse': {
+        'minecraft:horse': {
           variant: Opt(StringNode({ enum: 'horse_variant' }))
         },
-        'lightning': {
+        'minecraft:lightning': {
           blocks_set_on_fire: Opt(Reference('int_bounds')),
           entity_struck: Opt(Reference('entity_predicate'))
         },
-        'llama': {
+        'minecraft:llama': {
           variant: Opt(StringNode({ enum: 'llama_variant' }))
         },
-        'mooshroom': {
+        'minecraft:mooshroom': {
           variant: Opt(StringNode({ enum: 'mooshroom_variant' }))
         },
-        'painting': {
-          variant: Opt(StringNode({ validator: 'resource', params: { pool: 'painting_variant' } }))
+        'minecraft:painting': {
+          variant: Opt(Tag({ resource: 'painting_variant' }))
         },
-        'parrot': {
+        'minecraft:parrot': {
           variant: Opt(StringNode({ enum: 'parrot_variant' }))
         },
-        'player': {
+        'minecraft:player': {
           gamemode: Opt(StringNode({ enum: 'gamemode' })),
-          level: Reference('int_bounds'),
+          level: Opt(Reference('int_bounds')),
           advancements: Opt(MapNode(
             StringNode({ validator: 'resource', params: { pool: '$advancement' } }),
             ChoiceNode([
@@ -199,25 +312,37 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
           )),
           looking_at: Opt(Reference('entity_predicate'))
         },
-        'rabbit': {
+        'minecraft:rabbit': {
           variant: Opt(StringNode({ enum: 'rabbit_variant' }))
         },
-        'slime': {
-          size: Reference('int_bounds')
+        'minecraft:raider': {
+          has_raid: Opt(BooleanNode()),
+          is_captain: Opt(BooleanNode()),
         },
-        'tropical_fish': {
+        'minecraft:slime': {
+          size: Opt(Reference('int_bounds'))
+        },
+        'minecraft:tropical_fish': {
           variant: Opt(StringNode({ enum: 'tropical_fish_variant' }))
         },
-        'villager': {
+        'minecraft:villager': {
           variant: Opt(StringNode({ validator: 'resource', params: { pool: 'villager_type' } }))
+        },
+        'minecraft:wolf': {
+          variant: Opt(Tag({ resource: '$wolf_variant' })),
         },
       }
     })),
+    // TODO: support any unsafe data
     nbt: Opt(StringNode({ validator: 'nbt', params: { registry: { category: 'minecraft:entity', id: ['pop', { push: 'type' }] } } })),
     team: Opt(StringNode({ validator: 'team' })),
     location: Opt(Reference('location_predicate')),
     stepping_on: Opt(Reference('location_predicate')),
     distance: Opt(Reference('distance_predicate')),
+    slots: Opt(MapNode(
+      StringNode({ enum: 'slot_range', additional: true }),
+      Reference('item_predicate')
+    )),
     flags: Opt(ObjectNode({
       is_on_fire: Opt(BooleanNode()),
       is_sneaking: Opt(BooleanNode()),
@@ -226,7 +351,7 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
       is_baby: Opt(BooleanNode())
     })),
     equipment: Opt(MapNode(
-      StringNode({ enum: 'slot' }),
+      StringNode({ enum: 'equipment_slot' }),
       Reference('item_predicate')
     )),
     vehicle: Opt(Reference('entity_predicate')),
@@ -250,8 +375,8 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
   }, { context: 'damage_source' }))
 
   schemas.register('damage_predicate', ObjectNode({
-    dealt: Reference('float_bounds'),
-    taken: Reference('float_bounds'),
+    dealt: Opt(Reference('float_bounds')),
+    taken: Opt(Reference('float_bounds')),
     blocked: Opt(BooleanNode()),
     source_entity: Opt(Reference('entity_predicate')),
     type: Opt(Reference('damage_source_predicate'))

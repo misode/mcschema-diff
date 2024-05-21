@@ -37,10 +37,7 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
 
   schemas.register('advancement', Mod(ObjectNode({
     display: Opt(Mod(ObjectNode({
-      icon: ObjectNode({
-        item: StringNode({ validator: 'resource', params: { pool: 'item' } }),
-        nbt: Opt(StringNode({ validator: 'nbt', params: { registry: { category: 'minecraft:item', id: ['pop', { push: 'item' }] } } }))
-      }),
+      icon: Reference('item_stack'),
       title: Reference('text_component'),
       description: Reference('text_component'),
       background: Opt(StringNode()),
@@ -51,7 +48,7 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
     }), {
       default: () => ({
         icon: {
-          item: 'minecraft:stone'
+          id: 'minecraft:stone'
         },
         title: '',
         description: ''
@@ -99,6 +96,9 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
         'minecraft:allay_drop_item_on_block': {
           location: EntityPredicate
         },
+        'minecraft:any_block_use': {
+          location: EntityPredicate
+        },
         'minecraft:bee_nest_destroyed': {
           block: Opt(StringNode({ validator: 'resource', params: { pool: 'block' } })),
           num_bees_inside: Opt(Reference('int_bounds')),
@@ -122,14 +122,23 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
           ))
         },
         'minecraft:construct_beacon': {
-          level: Reference('int_bounds')
+          level: Opt(Reference('int_bounds'))
         },
         'minecraft:consume_item': {
           item: Opt(Reference('item_predicate'))
         },
+        'minecraft:crafter_recipe_crafted': {
+          recipe_id: StringNode({ validator: 'resource', params: { pool: '$recipe' } }),
+          ingredients: Opt(ListNode(
+            Reference('item_predicate')
+          ))
+        },
         'minecraft:cured_zombie_villager': {
           villager: EntityPredicate,
           zombie: EntityPredicate
+        },
+        'minecraft:default_block_use': {
+          location: EntityPredicate
         },
         'minecraft:effects_changed': {
           effects: Opt(MapNode(
@@ -147,7 +156,7 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
           ))
         },
         'minecraft:enchanted_item': {
-          levels: Reference('int_bounds'),
+          levels: Opt(Reference('int_bounds')),
           item: Opt(Reference('item_predicate'))
         },
         'minecraft:entity_hurt_player': {
@@ -156,6 +165,11 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
         'minecraft:entity_killed_player': {
           entity: EntityPredicate,
           killing_blow: Opt(Reference('damage_source_predicate'))
+        },
+        'minecraft:fall_after_explosion': {
+          start_position: Reference('location_predicate'),
+          distance: Reference('distance_predicate'),
+          cause: EntityPredicate,
         },
         'minecraft:fall_from_height': {
           start_position: Opt(Reference('location_predicate')),
@@ -170,17 +184,17 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
         },
         'minecraft:inventory_changed': {
           slots: Opt(ObjectNode({
-            empty: Reference('int_bounds'),
-            occupied: Reference('int_bounds'),
-            full: Reference('int_bounds')
+            empty: Opt(Reference('int_bounds')),
+            occupied: Opt(Reference('int_bounds')),
+            full: Opt(Reference('int_bounds'))
           })),
           items: Opt(ListNode(
             Reference('item_predicate')
           ))
         },
         'minecraft:item_durability_changed': {
-          delta: Reference('int_bounds'),
-          durability: Reference('int_bounds'),
+          delta: Opt(Reference('int_bounds')),
+          durability: Opt(Reference('int_bounds')),
           item: Opt(Reference('item_predicate'))
         },
         'minecraft:item_used_on_block': {
@@ -191,14 +205,14 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
           killing_blow: Opt(Reference('damage_source_predicate'))
         },
         'minecraft:killed_by_crossbow': {
-          unique_entity_types: Reference('int_bounds'),
+          unique_entity_types: Opt(Reference('int_bounds')),
           victims: Opt(ListNode(
             EntityPredicate
           ))
         },
         'minecraft:levitation': {
           distance: Opt(Reference('distance_predicate')),
-          duration: Reference('int_bounds')
+          duration: Opt(Reference('int_bounds'))
         },
         'minecraft:lightning_strike': {
           lightning: EntityPredicate,
@@ -254,7 +268,7 @@ export function initAdvancementSchemas(schemas: SchemaRegistry, collections: Col
         'minecraft:target_hit': {
           projectile: EntityPredicate,
           shooter: EntityPredicate,
-          signal_strength: Reference('int_bounds')
+          signal_strength: Opt(Reference('int_bounds'))
         },
         'minecraft:thrown_item_picked_up_by_entity': {
           entity: EntityPredicate,

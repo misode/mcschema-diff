@@ -114,6 +114,14 @@ type TagConfig = {
 }
 export let Tag: (config: TagConfig) => INode
 
+export let Filterable: (node: INode) => INode
+
+type SizeLimitedStringConfig = {
+  minLength?: number,
+  maxLength?: number,
+}
+export let SizeLimitedString: (config: SizeLimitedStringConfig) => INode
+
 export function initCommonSchemas(schemas: SchemaRegistry, collections: CollectionRegistry) {
   const StringNode = RawStringNode.bind(undefined, collections)
   const Reference = RawReference.bind(undefined, schemas)
@@ -153,7 +161,7 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
     default: () => [0, 0, 0]
   }))
 
-  const Bounds = (integer?: boolean) => Opt(ChoiceNode([
+  const Bounds = (integer?: boolean) => ChoiceNode([
     {
       type: 'number',
       node: NumberNode({ integer }),
@@ -170,7 +178,7 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         max: v ?? 0
       })
     }
-  ]))
+  ], { context: 'range' })
 
   schemas.register('int_bounds', Bounds(true))
 
@@ -261,6 +269,10 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         target: Reference('scoreboard_name_provider'),
         score: StringNode({ validator: 'objective' }),
         scale: Opt(NumberNode())
+      },
+      'minecraft:storage': {
+        storage: StringNode({ validator: 'resource', params: { pool: '$storage' } }),
+        path: StringNode({ validator: 'nbt_path' }),
       }
     }))
 
@@ -303,25 +315,19 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         value: NumberNode(config)
       },
       'minecraft:uniform': {
-        value: ObjectNode({
-          min_inclusive: NumberNode(config),
-          max_exclusive: NumberNode(config)
-        })
+        min_inclusive: NumberNode(config),
+        max_exclusive: NumberNode(config)
       },
       'minecraft:clamped_normal': {
-        value: ObjectNode({
-          min: NumberNode(),
-          max: NumberNode(),
-          mean: NumberNode(),
-          deviation: NumberNode()
-        })
+        min: NumberNode(),
+        max: NumberNode(),
+        mean: NumberNode(),
+        deviation: NumberNode()
       },
       'minecraft:trapezoid': {
-        value: ObjectNode({
-          min: NumberNode(),
-          max: NumberNode(),
-          plateau: NumberNode()
-        })
+        min: NumberNode(),
+        max: NumberNode(),
+        plateau: NumberNode()
       }
     }
   )
@@ -338,31 +344,23 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         value: NumberNode({ integer: true, ...config })
       },
       'minecraft:uniform': {
-        value: ObjectNode({
-          min_inclusive: NumberNode({ integer: true, ...config }),
-          max_inclusive: NumberNode({ integer: true, ...config })
-        })
+        min_inclusive: NumberNode({ integer: true, ...config }),
+        max_inclusive: NumberNode({ integer: true, ...config })
       },
       'minecraft:biased_to_bottom': {
-        value: ObjectNode({
-          min_inclusive: NumberNode({ integer: true, ...config }),
-          max_inclusive: NumberNode({ integer: true, ...config })
-        })
+        min_inclusive: NumberNode({ integer: true, ...config }),
+        max_inclusive: NumberNode({ integer: true, ...config })
       },
       'minecraft:clamped': {
-        value: ObjectNode({
-          min_inclusive: NumberNode({ integer: true, ...config }),
-          max_inclusive: NumberNode({ integer: true, ...config }),
-          source: Reference('int_provider')
-        })
+        min_inclusive: NumberNode({ integer: true, ...config }),
+        max_inclusive: NumberNode({ integer: true, ...config }),
+        source: Reference('int_provider')
       },
       'minecraft:clamped_normal': {
-        value: ObjectNode({
-          min_inclusive: NumberNode({ integer: true, ...config }),
-          max_inclusive: NumberNode({ integer: true, ...config }),
-          mean: NumberNode(),
-          deviation: NumberNode()
-        })
+        min_inclusive: NumberNode({ integer: true, ...config }),
+        max_inclusive: NumberNode({ integer: true, ...config }),
+        mean: NumberNode(),
+        deviation: NumberNode()
       },
       'minecraft:weighted_list': {
         distribution: ListNode(
@@ -481,6 +479,53 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
     },
   ], { choiceContext: 'tag' })
 
+  Filterable = (node: INode) => ChoiceNode([
+    {
+      type: 'simple',
+      match: () => true,
+      change: v => typeof v === 'object' && v?.raw ? v.raw : undefined,
+      node: node,
+    },
+    {
+      type: 'filtered',
+      match: v => typeof v === 'object' && v !== null && v.raw !== undefined,
+      change: v => ({ raw: v }),
+      priority: 1,
+      node: ObjectNode({
+        raw: node,
+        filtered: Opt(node),
+      }),
+    },
+  ], { context: 'filterable' })
+
+  SizeLimitedString = ({ minLength, maxLength }: SizeLimitedStringConfig) => Mod(StringNode(), node => ({
+    validate: (path, value, errors, options) => {
+      value = node.validate(path, value, errors, options)
+      if (minLength !== undefined && typeof value === 'string' && value.length < minLength) {
+        errors.add(path, 'error.invalid_string_range.smaller', value.length, minLength)
+      }
+      if (maxLength !== undefined && typeof value === 'string' && value.length > maxLength) {
+        errors.add(path, 'error.invalid_string_range.larger', value.length, maxLength)
+      }
+      return value
+    }
+  }))
+
+  const ListOperationFields = ({ maxLength }: { maxLength: number }) => ({
+    mode: StringNode({ enum: 'list_operation' }),
+    offset: Opt(Mod(NumberNode({ integer: true, min: 0 }), {
+      enabled: (path) => ['insert', 'replace_section'].includes(path.push("mode").get())
+    })),
+    size: Opt(Mod(NumberNode({ integer: true, min: 0, max: maxLength }), {
+      enabled: (path) => ['replace_section'].includes(path.push("mode").get())
+    })),
+  })
+
+  const ListOperation = ({ node, maxLength }: { node: INode, maxLength: number }) => ObjectNode({
+    values: ListNode(node),
+    ...ListOperationFields({ maxLength })
+  }, { context: 'list_operation'})
+
   ConditionCases = (entitySourceNode: INode<any> = StringNode({ enum: 'entity_source' })) => ({
     'minecraft:all_of': {
       terms: ListNode(
@@ -542,7 +587,8 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
     'minecraft:table_bonus': {
       enchantment: StringNode({ validator: 'resource', params: { pool: 'enchantment' } }),
       chances: ListNode(
-        NumberNode({ min: 0, max: 1 })
+        NumberNode({ min: 0, max: 1 }),
+        { minLength: 1 },
       )
     },
     'minecraft:time_check': {
@@ -578,10 +624,16 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
           enabled: path => path.push('formula').get() !== 'minecraft:ore_drops'
         })
       },
-      'minecraft:copy_name': {
-        source: copySourceNode
+      'minecraft:copy_components': {
+        source: StringNode({ enum: ['block_entity'] }),
+        include: Opt(ListNode(
+          StringNode({ validator: 'resource', params: { pool: 'data_component_type' } }),
+        )),
+        exclude: Opt(ListNode(
+          StringNode({ validator: 'resource', params: { pool: 'data_component_type' } }),
+        )),
       },
-      'minecraft:copy_nbt': {
+      'minecraft:copy_custom_data': {
         source: Reference('nbt_provider'),
         ops: ListNode(
           ObjectNode({
@@ -590,6 +642,9 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
             op: StringNode({ enum: ['replace', 'append', 'merge'] })
           }, { context: 'nbt_operation' })
         )
+      },
+      'minecraft:copy_name': {
+        source: copySourceNode
       },
       'minecraft:copy_state': {
         block: StringNode({ validator: 'resource', params: { pool: 'block' } }),
@@ -616,12 +671,20 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
       'minecraft:fill_player_head': {
         entity: entitySourceNode
       },
+      'minecraft:filtered': {
+        item_filter: Reference('item_predicate'),
+        modifier: Reference('item_modifier'),
+      },
       'minecraft:limit_count': {
         limit: Reference('int_range')
       },
       'minecraft:looting_enchant': {
         count: Reference('number_provider'),
         limit: Opt(NumberNode({ integer: true }))
+      },
+      'minecraft:modify_contents': {
+        component: StringNode({ validator: 'resource', params: { pool: collections.get('container_component_manipulators') } }),
+        modifier: Reference('item_modifier'),
       },
       'minecraft:reference': {
         name: StringNode({ validator: 'resource', params: { pool: '$item_modifier' } })
@@ -640,8 +703,16 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         ),
         append: Opt(BooleanNode())
       },
+      'minecraft:set_book_cover': {
+        title: Opt(Filterable(SizeLimitedString({ maxLength: 32 }))),
+        author: Opt(StringNode()),
+        generation: Opt(NumberNode({ integer: true, min: 0, max: 3 })),
+      },
+      'minecraft:set_components': {
+        components: Reference('data_component_patch'),
+      },
       'minecraft:set_contents': {
-        type: StringNode({ validator: 'resource', params: { pool: 'block_entity_type' } }),
+        component: StringNode({ validator: 'resource', params: { pool: collections.get('container_component_manipulators') } }),
         entries: ListNode(
           Reference('loot_entry')
         )
@@ -649,6 +720,13 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
       'minecraft:set_count': {
         count: Reference('number_provider'),
         add: Opt(BooleanNode())
+      },
+      'minecraft:set_custom_data': {
+        // TODO: support any unsafe data
+        tag: StringNode({ validator: 'nbt', params: { registry: { category: 'minecraft:item' } } })
+      },
+      'minecraft:set_custom_model_data': {
+        value: Reference('number_provider'),
       },
       'minecraft:set_damage': {
         damage: Reference('number_provider'),
@@ -661,8 +739,29 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
         ),
         add: Opt(BooleanNode())
       },
+      'minecraft:set_fireworks': {
+        explosions: Opt(ListOperation({
+          node: Reference('firework_explosion'),
+          maxLength: 256,
+        })),
+        flight_duration: Opt(NumberNode({ integer: true, min: 0, max: 255 })),
+      },
+      'minecraft:set_firework_explosion': {
+        shape: Opt(StringNode({ enum: 'firework_explosion_shape' })),
+        colors: Opt(ListNode(
+          NumberNode({ color: true }),
+        )),
+        fade_colors: Opt(ListNode(
+          NumberNode({ color: true }),
+        )),
+        trail: Opt(BooleanNode()),
+        twinkle: Opt(BooleanNode()),
+      },
       'minecraft:set_instrument': {
         options: StringNode({ validator: 'resource', params: { pool: 'instrument', requireTag: true } })
+      },
+      'minecraft:set_item': {
+        item: StringNode({ validator: 'resource', params: { pool: 'item' } }),
       },
       'minecraft:set_loot_table': {
         type: StringNode({ validator: 'resource', params: { pool: 'block_entity_type' } }),
@@ -672,19 +771,24 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
       'minecraft:set_lore': {
         entity: Opt(entitySourceNode),
         lore: ListNode(
-          Reference('text_component')
+          Reference('text_component'),
+          { maxLength: 256 },
         ),
-        replace: Opt(BooleanNode())
+        ...ListOperationFields({ maxLength: 256 }),
       },
       'minecraft:set_name': {
         entity: Opt(entitySourceNode),
+        target: Opt(StringNode({ enum: ['custom_name', 'item_name'] })),
         name: Opt(Reference('text_component'))
       },
-      'minecraft:set_nbt': {
-        tag: StringNode({ validator: 'nbt', params: { registry: { category: 'minecraft:item' } } })
+      'minecraft:set_ominous_bottle_amplifier': {
+        amplifier: Reference('number_provider'),
       },
       'minecraft:set_potion': {
         id: StringNode({ validator: 'resource', params: { pool: 'potion' } })
+      },
+      'minecraft:ominous_bottle_amplifier': {
+        amplifier: Reference('number_provider')
       },
       'minecraft:set_stew_effect': {
         effects: Opt(ListNode(
@@ -693,7 +797,27 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
             duration: Reference('number_provider')
           })
         ))
-      }
+      },
+      'minecraft:set_writable_book_pages': {
+        pages: ListNode(
+          Filterable(SizeLimitedString({ maxLength: 1024 })),
+          { maxLength: 100 },
+        ),
+        ...ListOperationFields({ maxLength: 100 }),
+      },
+      'minecraft:set_written_book_pages': {
+        pages: ListNode(
+          Filterable(Reference('text_component')),
+          { maxLength: 100 },
+        ),
+        ...ListOperationFields({ maxLength: 100 }),
+      },
+      'minecraft:toggle_tooltips': {
+        toggles: MapNode(
+          StringNode({ validator: 'resource', params: { pool: collections.get('toggleable_data_component_type') }}),
+          BooleanNode(),
+        ),
+      },
     }
     const res: NestedNodeChildren = {}
     collections.get('loot_function_type').forEach(f => {
