@@ -4,6 +4,7 @@ import { initAssetsSchemas } from './assets'
 import { initChatTypeSchemas } from './ChatType'
 import { initCommonSchemas } from './Common'
 import { initConditionSchemas } from './Condition'
+import { initDamageTypeSchemas } from './DamageType'
 import { initDimensionSchemas } from './Dimension'
 import { initDimensionTypeSchemas } from './DimensionType'
 import { initItemModifierSchemas } from './ItemModifier'
@@ -13,6 +14,7 @@ import { initPredicatesSchemas } from './Predicates'
 import { initRecipeSchemas } from './Recipe'
 import { initTagsSchemas } from './Tags'
 import { initTextComponentSchemas } from './TextComponent'
+import { initTrimsSchemas } from './Trims'
 import { initWorldgenSchemas } from './worldgen'
 import { initWorldSettingsSchemas } from './WorldSettings'
 
@@ -23,6 +25,7 @@ export function initSchemas(schemas: SchemaRegistry, collections: CollectionRegi
     initAdvancementSchemas(schemas, collections)
     initAssetsSchemas(schemas, collections)
     initConditionSchemas(schemas, collections)
+    initDamageTypeSchemas(schemas, collections)
     initDimensionTypeSchemas(schemas, collections)
     initDimensionSchemas(schemas, collections)
     initItemModifierSchemas(schemas, collections)
@@ -32,6 +35,7 @@ export function initSchemas(schemas: SchemaRegistry, collections: CollectionRegi
     initRecipeSchemas(schemas, collections)
     initTagsSchemas(schemas, collections)
     initTextComponentSchemas(schemas, collections)
+    initTrimsSchemas(schemas, collections)
     initWorldgenSchemas(schemas, collections)
     initWorldSettingsSchemas(schemas, collections)
 }

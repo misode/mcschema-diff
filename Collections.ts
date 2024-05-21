@@ -277,6 +277,7 @@ export function initCollections(collections: CollectionRegistry) {
     'minecraft:selector',
     'minecraft:fishing',
     'minecraft:entity',
+    'minecraft:archaeology',
     'minecraft:gift',
     'minecraft:barter',
     'minecraft:advancement_reward',
@@ -431,6 +432,7 @@ export function initCollections(collections: CollectionRegistry) {
     'directory',
     'filter',
     'unstitch',
+    'paletted_permutations',
   ])
 
   collections.register('type_specific_type', [
@@ -531,6 +533,37 @@ export function initCollections(collections: CollectionRegistry) {
     'blockfish',
     'betty',
     'clayfish',
+  ])
+
+  collections.register('armor_material', [
+    'leather',
+    'chainmail',
+    'iron',
+    'gold',
+    'diamond',
+    'turtle',
+    'netherite',
+  ])
+
+  collections.register('damage_scaling', [
+    'never',
+    'always',
+    'when_caused_by_living_non_player',
+  ])
+
+  collections.register('damage_effects', [
+    'hurt',
+    'thorns',
+    'drowning',
+    'burning',
+    'poking',
+    'freezing',
+  ])
+
+  collections.register('death_message_type', [
+    'default',
+    'fall_variants',
+    'intentional_game_design',
   ])
 
   collections.register('recipe_category', [
