@@ -19,7 +19,6 @@ export function initTemplatePoolSchemas(schemas: SchemaRegistry, collections: Co
   const StringNode = RawStringNode.bind(undefined, collections)
 
   schemas.register('template_pool', Mod(ObjectNode({
-    name: StringNode(),
     fallback: StringNode(),
     elements: ListNode(
       Reference('template_weighted_element')
@@ -41,7 +40,7 @@ export function initTemplatePoolSchemas(schemas: SchemaRegistry, collections: Co
   }))
 
   schemas.register('template_weighted_element', Mod(ObjectNode({
-    weight: NumberNode({ integer: true, min: 1 }),
+    weight: NumberNode({ integer: true, min: 1, max: 150 }),
     element: Reference('template_element')
   }, { category: 'pool' }), {
     default: () => ({
@@ -56,22 +55,25 @@ export function initTemplatePoolSchemas(schemas: SchemaRegistry, collections: Co
 
   schemas.register('template_element', Mod(ObjectNode({
     element_type: StringNode({ validator: 'resource', params: { pool: 'worldgen/structure_pool_element' } }),
-    projection: StringNode({ enum: ['rigid', 'terrain_matching'] }),
     [Switch]: [{ push: 'element_type' }],
     [Case]: {
       'minecraft:feature_pool_element': {
+        projection: StringNode({ enum: ['rigid', 'terrain_matching'] }),
         feature: StringNode({ validator: 'resource', params: { pool: '$worldgen/placed_feature' } })
       },
       'minecraft:legacy_single_pool_element': {
+        projection: StringNode({ enum: ['rigid', 'terrain_matching'] }),
         location: StringNode({ validator: 'resource', params: { pool: '$structure' }}),
         processors: Processors
       },
       'minecraft:list_pool_element': {
+        projection: StringNode({ enum: ['rigid', 'terrain_matching'] }),
         elements: ListNode(
           Reference('template_element')
         )
       },
       'minecraft:single_pool_element': {
+        projection: StringNode({ enum: ['rigid', 'terrain_matching'] }),
         location: StringNode({ validator: 'resource', params: { pool: '$structure' }}),
         processors: Processors
       }
