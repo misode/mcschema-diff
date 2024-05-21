@@ -482,7 +482,12 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
   ], { choiceContext: 'tag' })
 
   ConditionCases = (entitySourceNode: INode<any> = StringNode({ enum: 'entity_source' })) => ({
-    'minecraft:alternative': {
+    'minecraft:all_of': {
+      terms: ListNode(
+        Reference('condition')
+      )
+    },
+    'minecraft:any_of': {
       terms: ListNode(
         Reference('condition')
       )
@@ -617,6 +622,9 @@ export function initCommonSchemas(schemas: SchemaRegistry, collections: Collecti
       'minecraft:looting_enchant': {
         count: Reference('number_provider'),
         limit: Opt(NumberNode({ integer: true }))
+      },
+      'minecraft:reference': {
+        name: StringNode({ validator: 'resource', params: { pool: '$item_modifier' } })
       },
       'minecraft:set_attributes': {
         modifiers: ListNode(

@@ -36,6 +36,7 @@ export function initCollections(collections: CollectionRegistry) {
     'minecraft:player_hurt_entity',
     'minecraft:player_interacted_with_entity',
     'minecraft:player_killed_entity',
+    'minecraft:recipe_crafted',
     'minecraft:recipe_unlocked',
     'minecraft:ride_entity_in_lava',
     'minecraft:shot_crossbow',
@@ -282,6 +283,7 @@ export function initCollections(collections: CollectionRegistry) {
     'minecraft:barter',
     'minecraft:advancement_reward',
     'minecraft:advancement_entity',
+    'minecraft:advancement_location',
     'minecraft:generic',
     'minecraft:block'
   ])
@@ -405,9 +407,10 @@ export function initCollections(collections: CollectionRegistry) {
 
   collections.register('glyph_provider_type', [
     'bitmap',
+    'reference',
     'ttf',
     'space',
-    'legacy_unicode',
+    'unihex',
   ])
 
   collections.register('mob_category', [
@@ -424,7 +427,6 @@ export function initCollections(collections: CollectionRegistry) {
   collections.register('feature_flags', [
     'vanilla',
     'bundle',
-    'update_1_20',
   ])
 
   collections.register('sprite_source_type', [
