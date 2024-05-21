@@ -87,16 +87,7 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
               Reference('item_predicate')
             ))
           }),
-          'minecraft:custom_data': ChoiceNode([
-            {
-              type: 'string',
-              node: StringNode({ validator: 'nbt', params: { registry: { category: 'minecraft:item', id: ['pop', 'pop', { push: 'item' }] } } }),
-            },
-            {
-              type: 'object',
-              node: ObjectNode({}) // TODO: any unsafe data
-            },
-          ]),
+          'minecraft:custom_data': Reference('custom_data_component'),
           'minecraft:damage': ObjectNode({
             durability: Opt(Reference('int_bounds')),
             damage: Opt(Reference('int_bounds')),
@@ -150,7 +141,7 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
   }, { context: 'item' }))
 
   schemas.register('enchantment_predicate', ObjectNode({
-    enchantment: Opt(StringNode({ validator: 'resource', params: { pool: 'enchantment' } })),
+    enchantments: Opt(Tag({ resource: 'enchantment' })),
     levels: Opt(Reference('int_bounds'))
   }, { context: 'enchantment' }))
 
@@ -185,6 +176,7 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
       light: Opt(Reference('int_bounds'))
     })),
     smokey: Opt(BooleanNode()),
+    can_see_sky: Opt(BooleanNode()),
     block: Opt(Reference('block_predicate')),
     fluid: Opt(Reference('fluid_predicate'))
   }, { context: 'location' }))
@@ -239,6 +231,16 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
     absolute: Opt(Reference('float_bounds')),
     horizontal: Opt(Reference('float_bounds'))
   }, { context: 'distance' }))
+
+  schemas.register('movement_predicate', ObjectNode({
+    x: Opt(Reference('float_bounds')),
+    y: Opt(Reference('float_bounds')),
+    z: Opt(Reference('float_bounds')),
+    speed: Opt(Reference('float_bounds')),
+    horizontal_speed: Opt(Reference('float_bounds')),
+    vertical_speed: Opt(Reference('float_bounds')),
+    fall_distance: Opt(Reference('float_bounds')),
+  }, { context: 'movement_predicate' }))
 
   schemas.register('entity_predicate', ObjectNode({
     type: Opt(Tag({ resource: 'entity_type' })),
@@ -337,6 +339,8 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
     nbt: Opt(StringNode({ validator: 'nbt', params: { registry: { category: 'minecraft:entity', id: ['pop', { push: 'type' }] } } })),
     team: Opt(StringNode({ validator: 'team' })),
     location: Opt(Reference('location_predicate')),
+    movement: Opt(Reference('movement_predicate')),
+    movement_affected_by: Opt(Reference('location_predicate')),
     stepping_on: Opt(Reference('location_predicate')),
     distance: Opt(Reference('distance_predicate')),
     slots: Opt(MapNode(
@@ -344,16 +348,19 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
       Reference('item_predicate')
     )),
     flags: Opt(ObjectNode({
+      is_on_ground: Opt(BooleanNode()),
       is_on_fire: Opt(BooleanNode()),
       is_sneaking: Opt(BooleanNode()),
       is_sprinting: Opt(BooleanNode()),
       is_swimming: Opt(BooleanNode()),
+      is_flying: Opt(BooleanNode()),
       is_baby: Opt(BooleanNode())
     })),
     equipment: Opt(MapNode(
       StringNode({ enum: 'equipment_slot' }),
       Reference('item_predicate')
     )),
+    periodic_tick: Opt(NumberNode({ integer: true, min: 1 })),
     vehicle: Opt(Reference('entity_predicate')),
     passenger: Opt(Reference('entity_predicate')),
     targeted_entity: Opt(Reference('entity_predicate')),
@@ -371,7 +378,8 @@ export function initPredicatesSchemas(schemas: SchemaRegistry, collections: Coll
       }, { context: 'tag_predicate' }),
     )),
     source_entity: Opt(Reference('entity_predicate')),
-    direct_entity: Opt(Reference('entity_predicate'))
+    direct_entity: Opt(Reference('entity_predicate')),
+    is_direct: Opt(BooleanNode()),
   }, { context: 'damage_source' }))
 
   schemas.register('damage_predicate', ObjectNode({
